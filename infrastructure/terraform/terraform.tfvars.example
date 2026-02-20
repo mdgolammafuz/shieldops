@@ -1,0 +1,15 @@
+# ShieldOps Terraform Configuration
+# Copy to terraform.tfvars and fill in your values
+
+# Required: Your GCP Project ID
+project_id = "shieldops-2026-xyz"
+
+# Optional: Override defaults
+region     = "europe-west1"
+zone       = "europe-west1-b"
+
+# Machine type (e2-small = 2GB RAM, ~$13/month)
+# machine_type = "e2-small"
+
+# SSH key path
+# ssh_public_key_path = "~/.ssh/shieldops.pub"
