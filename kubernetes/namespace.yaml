@@ -1,0 +1,12 @@
+# ShieldOps Namespace with Pod Security Standards
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shieldops
+  labels:
+    name: shieldops
+    # Pod Security Standards - Restricted profile
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest

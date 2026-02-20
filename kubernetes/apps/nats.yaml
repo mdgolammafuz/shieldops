@@ -1,0 +1,111 @@
+# NATS - Message Queue (Memory-only mode for RAM efficiency)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: shieldops
+data:
+  nats.conf: |
+    # NATS Server Configuration
+    port: 4222
+    http_port: 8222
+    
+    # Logging
+    debug: false
+    trace: false
+    
+    # Limits
+    max_payload: 1MB
+    max_pending: 64MB
+    max_connections: 100
+    
+    # No JetStream (memory only for RAM efficiency)
+    # In production, enable JetStream for persistence
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: shieldops
+  labels:
+    app: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nats
+        image: nats:2.10-alpine
+        args:
+        - "-c"
+        - "/etc/nats/nats.conf"
+        ports:
+        - name: client
+          containerPort: 4222
+        - name: monitor
+          containerPort: 8222
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nats
+          readOnly: true
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: nats-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: shieldops
+  labels:
+    app: nats
+spec:
+  selector:
+    app: nats
+  ports:
+  - name: client
+    port: 4222
+    targetPort: 4222
+  - name: monitor
+    port: 8222
+    targetPort: 8222

@@ -1,0 +1,68 @@
+# RBAC Configuration for ShieldOps
+# Principle: Least privilege access
+
+---
+# ServiceAccount for Ingestor
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingestor
+  namespace: shieldops
+automountServiceAccountToken: false
+
+---
+# ServiceAccount for Processor
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: processor
+  namespace: shieldops
+automountServiceAccountToken: false
+
+---
+# Role: Minimal read access (for health checks if needed)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-reader
+  namespace: shieldops
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+  resourceNames: []  # Only own pod
+
+---
+# Bind role to Ingestor
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ingestor-binding
+  namespace: shieldops
+subjects:
+- kind: ServiceAccount
+  name: ingestor
+  namespace: shieldops
+roleRef:
+  kind: Role
+  name: app-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Bind role to Processor
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: processor-binding
+  namespace: shieldops
+subjects:
+- kind: ServiceAccount
+  name: processor
+  namespace: shieldops
+roleRef:
+  kind: Role
+  name: app-reader
+  apiGroup: rbac.authorization.k8s.io

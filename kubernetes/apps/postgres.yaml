@@ -1,0 +1,147 @@
+# PostgreSQL - Threat Database
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: shieldops
+data:
+  init.sql: |
+    -- ShieldOps Database Schema
+    
+    -- Threats table: Detected phishing domains
+    CREATE TABLE IF NOT EXISTS threats (
+        id              BIGSERIAL PRIMARY KEY,
+        domain          VARCHAR(255) NOT NULL,
+        fingerprint     VARCHAR(64) UNIQUE NOT NULL,
+        matched_keyword VARCHAR(50) NOT NULL,
+        entropy         NUMERIC(5,3) NOT NULL,
+        confidence      VARCHAR(10) NOT NULL,
+        issuer          VARCHAR(255),
+        not_before      TIMESTAMPTZ,
+        not_after       TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        
+        -- Constraints
+        CONSTRAINT valid_confidence CHECK (confidence IN ('high', 'medium', 'low')),
+        CONSTRAINT valid_entropy CHECK (entropy >= 0 AND entropy <= 5),
+        CONSTRAINT valid_domain_length CHECK (char_length(domain) BETWEEN 4 AND 255)
+    );
+    
+    -- Indexes for common queries
+    CREATE INDEX IF NOT EXISTS idx_threats_created ON threats(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_threats_keyword ON threats(matched_keyword);
+    CREATE INDEX IF NOT EXISTS idx_threats_confidence ON threats(confidence);
+    CREATE INDEX IF NOT EXISTS idx_threats_domain ON threats(domain);
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO shieldops;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shieldops;
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: shieldops
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999  # postgres user
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgres
+        image: postgres:16-alpine
+        ports:
+        - name: postgres
+          containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        - name: POSTGRES_DB
+          value: "shieldops"
+        - name: PGDATA
+          value: "/var/lib/postgresql/data/pgdata"
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: init
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - shieldops
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - shieldops
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: init
+        configMap:
+          name: postgres-init
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: shieldops
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
