@@ -1,0 +1,54 @@
+# K3s Agent Role - Worker Node Installation
+---
+- name: Check if K3s agent is already installed
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Download K3s installer
+  get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s-install.sh
+    mode: '0755'
+  when: not k3s_binary.stat.exists
+
+- name: Get K3s server URL
+  set_fact:
+    k3s_server_url: "https://{{ hostvars[groups['control_plane'][0]]['ansible_host'] }}:6443"
+
+- name: Get K3s token from server
+  set_fact:
+    k3s_token: "{{ hostvars[groups['control_plane'][0]]['k3s_token'] }}"
+
+- name: Install K3s agent
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    K3S_URL: "{{ k3s_server_url }}"
+    K3S_TOKEN: "{{ k3s_token }}"
+  command: /tmp/k3s-install.sh
+  args:
+    creates: /usr/local/bin/k3s
+  notify: Restart k3s-agent
+
+- name: Ensure K3s agent service is enabled and running
+  systemd:
+    name: k3s-agent
+    enabled: yes
+    state: started
+
+- name: Wait for node to join cluster
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  command: k3s kubectl get node {{ inventory_hostname }}
+  register: node_joined
+  until: node_joined.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Label worker node
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  command: >
+    k3s kubectl label node {{ inventory_hostname }}
+    node-role.kubernetes.io/worker=worker
+    --overwrite
+  changed_when: false

@@ -1,0 +1,61 @@
+# ShieldOps Cluster Setup Playbook
+# Usage: ansible-playbook playbooks/site.yml
+---
+- name: Prepare all nodes
+  hosts: k3s_cluster
+  become: true
+  roles:
+    - common
+  tags:
+    - common
+    - prepare
+
+- name: Install K3s control plane
+  hosts: control_plane
+  become: true
+  roles:
+    - k3s-server
+  tags:
+    - k3s
+    - control-plane
+
+- name: Join worker nodes
+  hosts: workers
+  become: true
+  roles:
+    - k3s-agent
+  tags:
+    - k3s
+    - workers
+
+- name: Verify cluster
+  hosts: control_plane
+  become: true
+  tasks:
+    - name: Get cluster nodes
+      command: k3s kubectl get nodes -o wide
+      register: cluster_nodes
+      changed_when: false
+
+    - name: Display cluster status
+      debug:
+        msg: "{{ cluster_nodes.stdout_lines }}"
+
+    - name: Verify all nodes are Ready
+      command: k3s kubectl get nodes -o jsonpath='{.items[*].status.conditions[?(@.type=="Ready")].status}'
+      register: nodes_ready
+      failed_when: "'False' in nodes_ready.stdout"
+      changed_when: false
+
+    - name: Display kubeconfig location
+      debug:
+        msg: |
+          Cluster is ready!
+          
+          Kubeconfig saved to: {{ playbook_dir }}/../kubeconfig
+          
+          To use:
+            export KUBECONFIG={{ playbook_dir }}/../kubeconfig
+            kubectl get nodes
+  tags:
+    - verify

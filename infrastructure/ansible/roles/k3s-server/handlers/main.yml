@@ -1,0 +1,7 @@
+# K3s Server Handlers
+---
+- name: Restart k3s
+  systemd:
+    name: k3s
+    state: restarted
+    daemon_reload: yes
