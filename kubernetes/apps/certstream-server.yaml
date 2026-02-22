@@ -1,0 +1,59 @@
+# CertStream Server Deployment
+# Aggregates global CT logs and serves them internally
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certstream-server
+  namespace: shieldops
+  labels:
+    app: certstream-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: certstream-server
+  template:
+    metadata:
+      labels:
+        app: certstream-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: certstream-server
+        image: 0rickyy0/certstream-server-go:latest
+        ports:
+        - name: ws
+          containerPort: 8080
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: certstream-server
+  namespace: shieldops
+  labels:
+    app: certstream-server
+spec:
+  selector:
+    app: certstream-server
+  ports:
+  - name: ws
+    port: 8080
+    targetPort: 8080
