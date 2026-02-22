@@ -1,0 +1,17 @@
+# ShieldOps Processor Dependencies
+# Minimal, production-ready
+
+# NATS client
+nats-py>=2.6.0
+
+# PostgreSQL async client
+asyncpg>=0.29.0
+
+# HTTP server for metrics
+aiohttp>=3.9.0
+
+# Prometheus metrics
+prometheus-client>=0.19.0
+
+# Structured logging
+structlog>=24.1.0
