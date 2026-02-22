@@ -1,0 +1,101 @@
+# Ingestor Deployment
+# Connects to internal CertStream, validates, publishes to NATS
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestor
+  namespace: shieldops
+  labels:
+    app: ingestor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingestor
+  template:
+    metadata:
+      labels:
+        app: ingestor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ingestor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: ingestor
+        image: shieldops-ingestor:latest
+        imagePullPolicy: Never
+        ports:
+        - name: metrics
+          containerPort: 8080
+        env:
+        - name: CERTSTREAM_URL
+          value: "ws://certstream-server:8080/"
+        - name: NATS_URL
+          value: "nats://nats:4222"
+        - name: NATS_SUBJECT
+          value: "certs.validated"
+        - name: METRICS_PORT
+          value: "8080"
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "10m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # Startup probe: tolerates slow WebSocket connection (up to 60s)
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 2
+        # Liveness: restart if deadlocked
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness: remove from service if unhealthy
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingestor
+  namespace: shieldops
+  labels:
+    app: ingestor
+spec:
+  selector:
+    app: ingestor
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
