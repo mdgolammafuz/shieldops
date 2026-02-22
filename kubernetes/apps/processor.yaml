@@ -1,0 +1,119 @@
+# Processor Deployment
+# Consumes from NATS, detects threats, writes to PostgreSQL
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processor
+  namespace: shieldops
+  labels:
+    app: processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: processor
+  template:
+    metadata:
+      labels:
+        app: processor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: processor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: processor
+        image: shieldops-processor:latest
+        imagePullPolicy: Never
+        ports:
+        - name: metrics
+          containerPort: 8080
+        env:
+        - name: NATS_URL
+          value: "nats://nats:4222"
+        - name: NATS_SUBJECT
+          value: "certs.validated"
+        - name: METRICS_PORT
+          value: "8080"
+        # Secret from file (not env var - security best practice)
+        - name: DATABASE_URL_FILE
+          value: "/etc/secrets/database-url"
+        volumeMounts:
+        - name: db-secret
+          mountPath: /etc/secrets
+          readOnly: true
+        resources:
+          requests:
+            memory: "48Mi"
+            cpu: "10m"
+          limits:
+            memory: "96Mi"
+            cpu: "200m"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        # Startup probe: tolerates slow DB connection (up to 60s)
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 2
+        # Liveness: restart if deadlocked
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        # Readiness: remove from service if unhealthy
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        # Lifecycle: graceful shutdown - drain in-flight messages
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5"]
+      volumes:
+      - name: db-secret
+        secret:
+          secretName: postgres-secret
+          defaultMode: 0400
+          items:
+          - key: database-url
+            path: database-url
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: processor
+  namespace: shieldops
+  labels:
+    app: processor
+spec:
+  selector:
+    app: processor
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
