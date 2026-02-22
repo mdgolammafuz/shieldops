@@ -4,12 +4,15 @@
 # This enables Demo B (Zero Trust) - rogue pods cannot reach database
 #
 # Policies:
-# 1. default-deny-all     - Baseline isolation
-# 2. allow-dns            - All pods can resolve DNS
-# 3. allow-ingestor       - Ingestor → Internet + NATS
-# 4. allow-processor      - Processor → NATS + PostgreSQL
-# 5. allow-nats           - NATS accepts from Ingestor + Processor
-# 6. allow-postgres       - PostgreSQL accepts from Processor only
+# 1. default-deny-all       - Baseline isolation
+# 2. allow-dns              - All pods can resolve DNS
+# 3. allow-ingestor         - Ingestor → CertStream Server + NATS
+# 4. allow-processor        - Processor → NATS + PostgreSQL
+# 5. allow-nats             - NATS accepts from Ingestor + Processor
+# 6. allow-postgres         - PostgreSQL accepts from Processor only
+# 7. allow-certstream-egress - CertStream Server → Internet (CT Logs)
+# 8. allow-certstream-ingress- CertStream Server accepts from Ingestor
+# 9-13. Observability stack policies
 
 ---
 # 1. Default Deny All - Zero Trust baseline
@@ -48,7 +51,7 @@ spec:
       port: 53
 
 ---
-# 3. Ingestor: Egress to CertStream (internet) + NATS
+# 3. Ingestor: Egress to CertStream (internal) + NATS
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -61,17 +64,14 @@ spec:
   policyTypes:
   - Egress
   egress:
-  # Allow internet access (CertStream WebSocket)
+  # Allow internal CertStream
   - to:
-    - ipBlock:
-        cidr: 0.0.0.0/0
-        except:
-        - 10.0.0.0/8
-        - 172.16.0.0/12
-        - 192.168.0.0/16
+    - podSelector:
+        matchLabels:
+          app: certstream-server
     ports:
     - protocol: TCP
-      port: 443
+      port: 8080
   # Allow NATS
   - to:
     - podSelector:
@@ -169,7 +169,54 @@ spec:
       port: 5432
 
 ---
-# 7. Prometheus: Egress to scrape all pods
+# 7. CertStream Server: Egress to Internet (CT Logs)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-certstream-egress
+  namespace: shieldops
+spec:
+  podSelector:
+    matchLabels:
+      app: certstream-server
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# 8. CertStream Server: Ingress from Ingestor
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-certstream-ingress
+  namespace: shieldops
+spec:
+  podSelector:
+    matchLabels:
+      app: certstream-server
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: ingestor
+    ports:
+    - protocol: TCP
+      port: 8080
+
+---
+# 9. Prometheus: Egress to scrape all pods
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -193,7 +240,7 @@ spec:
       port: 5432  # PostgreSQL (for pg_exporter if added)
 
 ---
-# 8. Grafana: Egress to Prometheus + Loki
+# 10. Grafana: Egress to Prometheus + Loki
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -222,7 +269,7 @@ spec:
       port: 3100
 
 ---
-# 9. Ingress to Grafana (external access)
+# 11. Ingress to Grafana (external access)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -244,7 +291,7 @@ spec:
       port: 3000
 
 ---
-# 10. Loki: Ingress from Promtail + Grafana
+# 12. Loki: Ingress from Promtail + Grafana
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -269,7 +316,7 @@ spec:
       port: 3100
 
 ---
-# 11. Promtail: Egress to Loki + Kubernetes API
+# 13. Promtail: Egress to Loki + Kubernetes API
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
