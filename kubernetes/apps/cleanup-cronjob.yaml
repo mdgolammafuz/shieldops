@@ -1,0 +1,56 @@
+# GDPR Cleanup CronJob
+# Deletes threats older than 7 days
+# Runs daily at 03:00 UTC
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cleanup
+  namespace: shieldops
+  labels:
+    app: cleanup
+spec:
+  schedule: "0 3 * * *"  # Daily at 03:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: cleanup
+            image: postgres:16-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting GDPR cleanup..."
+              DELETED=$(psql -h postgres -U shieldops -d shieldops -tAc \
+                "DELETE FROM threats WHERE created_at < NOW() - INTERVAL '7 days' RETURNING id" | wc -l)
+              echo "Deleted $DELETED records older than 7 days"
+              echo "Cleanup complete"
+            env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: password
+            resources:
+              requests:
+                memory: "32Mi"
+                cpu: "10m"
+              limits:
+                memory: "64Mi"
+                cpu: "50m"
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: ["ALL"]
+          restartPolicy: OnFailure
