@@ -53,11 +53,11 @@ spec:
           readOnly: true
         resources:
           requests:
-            memory: "48Mi"
-            cpu: "10m"
+            memory: "128Mi"
+            cpu: "100m"
           limits:
-            memory: "96Mi"
-            cpu: "200m"
+            memory: "256Mi"
+            cpu: "500m"
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
