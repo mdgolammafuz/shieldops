@@ -83,7 +83,7 @@ spec:
         - name: POSTGRES_DB
           value: "shieldops"
         - name: PGDATA
-          value: "/var/lib/postgresql/data/pgdata"
+          value: "/var/lib/postgresql/data/pgdata_v2"
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
