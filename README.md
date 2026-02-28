@@ -1,4 +1,4 @@
-# AeroCast / ShieldOps
+# ShieldOps
 
 **Real-time phishing detection infrastructure targeting German financial institutions.**
 
