@@ -27,6 +27,21 @@ async def fetch_prom_metric(query: str, default_val="0.0"):
         pass
     return default_val
 
+async def fetch_top_brand():
+    """Extracts the label of the highest targeted brand from Prometheus."""
+    query = 'topk(1, sum by (keyword) (rate(processor_threats_total[1h])))'
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(PROMETHEUS_URL, params={"query": query}, timeout=2.0)
+            data = resp.json()
+            if data.get("status") == "success" and data["data"]["result"]:
+                res = data["data"]["result"][0]
+                brand = res["metric"].get("keyword", "N/A").capitalize()
+                return brand
+    except Exception:
+        pass
+    return "N/A"
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
     with open("index.html", "r") as f:
@@ -39,8 +54,8 @@ async def get_dashboard_data():
         conn = await asyncpg.connect(get_db_url())
         rows = await conn.fetch(
             """
-            SELECT domain, matched_keyword, entropy, confidence, not_before, created_at 
-            FROM threats 
+            SELECT domain, matched_keyword, entropy, confidence, not_before, created_at, received_at 
+            FROM threats
             ORDER BY created_at DESC 
             LIMIT 50;
             """
@@ -52,9 +67,9 @@ async def get_dashboard_data():
         for row in rows:
             threat_dict = dict(row)
             
-            # Calculate Latency: Time between certificate issuance and our database write
-            if row['not_before'] and row['created_at']:
-                latency_seconds = (row['created_at'] - row['not_before']).total_seconds()
+            # Calculate Latency: Time between ingestion and our database write
+            if row['received_at'] and row['created_at']:
+                latency_seconds = (row['created_at'] - row['received_at']).total_seconds()
                 if latency_seconds > 0:
                     latencies.append(latency_seconds)
                 threat_dict['latency'] = round(latency_seconds, 2)
@@ -67,10 +82,13 @@ async def get_dashboard_data():
 
         avg_latency = round(sum(latencies)/len(latencies), 2) if latencies else 0.0
 
-        # 2. Fetch Prometheus Telemetry Concurrently
-        ingestion_rate, buffer_depth = await asyncio.gather(
+        # 2. Fetch Prometheus Telemetry & Business Insights Concurrently
+        ingestion_rate, buffer_depth, high_conf, duplicates, top_brand = await asyncio.gather(
             fetch_prom_metric("sum(rate(ingestor_messages_received_total[1m]))"),
-            fetch_prom_metric("sum(nats_consumer_num_pending)")
+            fetch_prom_metric("sum(nats_consumer_num_pending)"),
+            fetch_prom_metric('sum(processor_threats_total{confidence="high"})'),
+            fetch_prom_metric('sum(processor_db_duplicates_total)'),
+            fetch_top_brand()
         )
 
         return {
@@ -78,6 +96,11 @@ async def get_dashboard_data():
                 "ingestion_rate": ingestion_rate,
                 "avg_latency": avg_latency,
                 "buffer_depth": buffer_depth
+            },
+            "business": {
+                "top_brand": top_brand,
+                "high_confidence_total": high_conf,
+                "duplicates_blocked": duplicates
             },
             "threats": threats
         }
