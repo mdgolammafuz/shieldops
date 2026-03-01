@@ -24,8 +24,8 @@ spec:
           type: RuntimeDefault
       containers:
       - name: api
-        image: shieldops-api:latest
-        imagePullPolicy: Never
+        image: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-api:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
         volumeMounts:
@@ -64,6 +64,8 @@ metadata:
   name: api
   namespace: shieldops
 spec:
+  type: LoadBalancer
+  loadBalancerIP: 35.242.213.243
   selector:
     app: api
   ports:
