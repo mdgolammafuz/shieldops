@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS threats (
     issuer          VARCHAR(255),
     not_before      TIMESTAMPTZ,
     not_after       TIMESTAMPTZ,
+    received_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
     -- Constraints for data integrity
