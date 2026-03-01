@@ -32,8 +32,8 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: ingestor
-        image: shieldops-ingestor:latest
-        imagePullPolicy: Never
+        image: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-ingestor:latest
+        imagePullPolicy: Always
         ports:
         - name: metrics
           containerPort: 8080
