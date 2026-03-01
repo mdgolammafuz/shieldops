@@ -22,6 +22,7 @@ class Threat:
     issuer: Optional[str]
     not_before: Optional[int]
     not_after: Optional[int]
+    received_at: Optional[int]
 
 
 class Repository:
@@ -57,9 +58,9 @@ class Repository:
         query = """
             INSERT INTO threats (
                 domain, fingerprint, matched_keyword, 
-                entropy, confidence, issuer, not_before, not_after
+                entropy, confidence, issuer, not_before, not_after, received_at
             ) VALUES ($1, $2, $3, $4, $5, $6, 
-                      to_timestamp($7), to_timestamp($8))
+                      to_timestamp($7), to_timestamp($8), to_timestamp($9))
             ON CONFLICT (fingerprint) DO NOTHING
             RETURNING id
         """
@@ -75,6 +76,7 @@ class Repository:
                 threat.issuer,
                 threat.not_before,
                 threat.not_after,
+                threat.received_at,
             )
             return result is not None
 
