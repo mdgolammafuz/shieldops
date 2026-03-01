@@ -144,6 +144,7 @@ class Processor:
         issuer = data.get('issuer')
         not_before = data.get('not_before')
         not_after = data.get('not_after')
+        received_at = data.get('received_at')
 
         if not domains or not fingerprint:
             logger.debug("skipping message", reason="missing_fields", fingerprint=fingerprint)
@@ -167,6 +168,7 @@ class Processor:
                     issuer=issuer,
                     not_before=not_before,
                     not_after=not_after,
+                    received_at=received_at,
                 )
 
                 inserted = await self._repository.insert_threat(threat)
@@ -195,7 +197,8 @@ class Processor:
         """Prometheus metrics endpoint."""
         return web.Response(
             body=generate_latest(),
-            content_type=CONTENT_TYPE_LATEST,
+            content_type="text/plain",
+            charset="utf-8"
         )
 
     async def _health_handler(self, request: web.Request) -> web.Response:
