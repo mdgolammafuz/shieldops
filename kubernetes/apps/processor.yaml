@@ -32,8 +32,8 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
       - name: processor
-        image: shieldops-processor:latest
-        imagePullPolicy: Never
+        image: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-processor:latest
+        imagePullPolicy: Always
         ports:
         - name: metrics
           containerPort: 8080
