@@ -52,6 +52,24 @@
             <div class="telemetry-unit">pending msgs</div>
         </div>
     </div>
+
+    <div class="telemetry-grid">
+        <div class="telemetry-card" style="border-color: #d2a8ff;">
+            <div class="telemetry-title" style="color: #d2a8ff;">Top Targeted Brand</div>
+            <div id="metric-top-brand" class="telemetry-value">--</div>
+            <div class="telemetry-unit">highest attack rate</div>
+        </div>
+        <div class="telemetry-card" style="border-color: #ff7b72;">
+            <div class="telemetry-title" style="color: #ff7b72;">Critical Threats Caught</div>
+            <div id="metric-high-conf" class="telemetry-value">--</div>
+            <div class="telemetry-unit">high confidence matches</div>
+        </div>
+        <div class="telemetry-card" style="border-color: #79c0ff;">
+            <div class="telemetry-title" style="color: #79c0ff;">Redundant Data Dropped</div>
+            <div id="metric-duplicates" class="telemetry-value">--</div>
+            <div class="telemetry-unit">storage optimized</div>
+        </div>
+    </div>
     
     <table>
         <thead>
@@ -81,6 +99,11 @@
                 document.getElementById('metric-ingestion').innerText = data.telemetry.ingestion_rate;
                 document.getElementById('metric-latency').innerText = data.telemetry.avg_latency;
                 document.getElementById('metric-buffer').innerText = data.telemetry.buffer_depth;
+
+                // Update Business Insights
+                document.getElementById( 'metric-top-brand' ).innerText = data.business.top_brand;
+                document.getElementById( 'metric-high-conf' ).innerText = data.business.high_confidence_total;
+                document.getElementById( 'metric-duplicates' ).innerText = data.business.duplicates_blocked;
 
                 // Update Table
                 const tbody = document.getElementById('threat-body');
