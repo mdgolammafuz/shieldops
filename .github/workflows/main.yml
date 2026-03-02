@@ -118,6 +118,17 @@ jobs:
           echo "Waiting for core services..."
           kubectl rollout status statefulset/postgres -n shieldops --timeout=120s
           kubectl rollout status deployment/nats -n shieldops --timeout=120s
+
+      - name: Debug Kubernetes State on Failure
+        if: failure()
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n shieldops
+          echo "=== Postgres Events ==="
+          kubectl describe pod -l app=postgres -n shieldops
+          echo "=== Postgres Logs ==="
+          kubectl logs -l app=postgres -n shieldops || true
+
       - name: Execute SRE Verification Scripts
         run: |
           chmod +x tests/*.sh
