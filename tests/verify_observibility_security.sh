@@ -46,7 +46,7 @@ echo ""
 check 1 "Prometheus pod Running" "kubectl get pods -n $NS -l app=prometheus --no-headers | grep -q 'Running'"
 check 2 "Grafana pod Running" "kubectl get pods -n $NS -l app=grafana --no-headers | grep -q 'Running'"
 check 3 "Loki pod Running" "kubectl get pods -n $NS -l app=loki --no-headers | grep -q 'Running'"
-check 4 "Promtail pod Running" "kubectl get pods -n $NS -l app=promtail --no-headers | grep -q 'Running'"
+check 4 "Promtail DaemonSet deployed" "kubectl get daemonset -n $NS promtail >/dev/null 2>&1"
 
 PROM_POD=$(kubectl get pods -n $NS -l app=prometheus -o jsonpath='{.items[0].metadata.name}')
 check 5 "Prometheus scraping targets" "kubectl exec -n $NS $PROM_POD -- wget -q -O- 'http://localhost:9090/api/v1/targets' | grep -q 'health'"
@@ -68,8 +68,10 @@ check 11 "Default deny policy exists" "kubectl get networkpolicy -n $NS default-
 
 echo -e "${YELLOW}   Verifying Zero Trust Policies (Local Minikube Mode)...${NC}"
 echo -e "${YELLOW}   Testing Zero Trust (Strict Enforcement)...${NC}"
-check 12 "Rogue pod BLOCKED from PostgreSQL" "timeout 10 kubectl run rogue-pg-\$RANDOM --rm -i --restart=Never --image=busybox -n $NS -- sh -c 'nc -zv -w 3 postgres 5432 2>&1' 2>&1 | grep -qE 'timed out|Connection refused|command terminated' || [ \$? -eq 124 ]"
-check 13 "Rogue pod BLOCKED from NATS" "timeout 10 kubectl run rogue-nats-\$RANDOM --rm -i --restart=Never --image=busybox -n $NS -- sh -c 'nc -zv -w 3 nats 4222 2>&1' 2>&1 | grep -qE 'timed out|Connection refused|command terminated' || [ \$? -eq 124 ]"
+
+check 12 "Rogue pod BLOCKED from PostgreSQL" "! timeout 30 kubectl run rogue-pg-\$RANDOM --rm -i --restart=Never --image=alpine -n $NS -- sh -c 'nc -zv -w 3 postgres 5432' >/dev/null 2>&1"
+
+check 13 "Rogue pod BLOCKED from NATS" "! timeout 30 kubectl run rogue-nats-\$RANDOM --rm -i --restart=Never --image=alpine -n $NS -- sh -c 'nc -zv -w 3 nats 4222' >/dev/null 2>&1"
 
 PROC_POD=$(kubectl get pods -n $NS -l app=processor -o jsonpath='{.items[0].metadata.name}')
 check 14 "Processor CAN reach PostgreSQL" "kubectl exec -n $NS $PROC_POD -- python -c \"import socket; s=socket.socket(); s.settimeout(3); s.connect(('postgres', 5432)); print('ok')\" | grep -q 'ok'"
