@@ -66,7 +66,7 @@ jobs:
       - name: Run Trivy vulnerability scanner in IaC mode (Dockerized)
         run: |
           docker run --rm -v ${{ github.workspace }}:/workspace \
-            aquasec/trivy:latest config /workspace/kubernetes/ \
+            aquasec/trivy:latest config /workspace \
             --format sarif \
             --output /workspace/trivy-results.sarif \
             --severity CRITICAL,HIGH
@@ -103,6 +103,11 @@ jobs:
       - name: Deploy to Ephemeral Cluster
         run: |
           kubectl create namespace shieldops
+          # Dynamically generate ephemeral testing secrets to bypass static code scanners
+          DB_PASS=$(openssl rand -hex 16)
+          GF_PASS=$(openssl rand -hex 16)
+          kubectl create secret generic postgres-secret --namespace shieldops --from-literal=username=shieldops --from-literal=password=$DB_PASS
+          kubectl create secret generic grafana-secret --namespace shieldops --from-literal=admin-password=$GF_PASS
           # Override image pull policies and URLs for local testing
           find kubernetes/apps -name "*.yaml" -exec sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' {} +
           find kubernetes/apps -name "*.yaml" -exec sed -i 's|europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/||g' {} +
@@ -111,9 +116,10 @@ jobs:
       - name: Wait for Infrastructure to Stabilize
         run: |
           echo "Waiting for core services..."
+          # Pause to allow K8s controllers to create the pod objects before waiting
+          sleep 15
           kubectl wait --for=condition=ready pod -l app=postgres -n shieldops --timeout=120s
           kubectl wait --for=condition=ready pod -l app=nats -n shieldops --timeout=120s
-
       - name: Execute SRE Verification Scripts
         run: |
           chmod +x tests/*.sh
