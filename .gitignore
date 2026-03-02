@@ -1,2 +1,3 @@
 kubeconfig
 kubernetes/apps/postgres-secret.yaml
+.venv
