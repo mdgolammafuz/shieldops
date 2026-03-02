@@ -106,12 +106,10 @@ jobs:
           # Dynamically generate ephemeral testing secrets to bypass static code scanners
           DB_PASS=$(openssl rand -hex 16)
           GF_PASS=$(openssl rand -hex 16)
-          kubectl create secret generic postgres-secret --namespace shieldops --from-literal=username=shieldops --from-literal=password=$DB_PASS
+          # Construct the full database URL for the app layer
+          DB_URL="postgres://shieldops:${DB_PASS}@postgres:5432/shieldops"
+          kubectl create secret generic postgres-secret --namespace shieldops --from-literal=username=shieldops --from-literal=password=$DB_PASS --from-literal=database-url=$DB_URL
           kubectl create secret generic grafana-secret --namespace shieldops --from-literal=admin-password=$GF_PASS
-          # Override image pull policies and URLs for local testing
-          find kubernetes/apps -name "*.yaml" -exec sed -i 's/imagePullPolicy: Always/imagePullPolicy: IfNotPresent/g' {} +
-          find kubernetes/apps -name "*.yaml" -exec sed -i 's|europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/||g' {} +
-          kubectl apply -R -f kubernetes/
 
       - name: Wait for Infrastructure to Stabilize
         run: |
