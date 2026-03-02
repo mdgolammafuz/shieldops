@@ -217,6 +217,8 @@ spec:
           mountPath: /var/lib/grafana/dashboards
         - name: data
           mountPath: /var/lib/grafana
+        - name: grafana-tmp
+          mountPath: /tmp
         resources:
           requests:
             memory: "256Mi"
@@ -225,6 +227,7 @@ spec:
             memory: "512Mi"
             cpu: "500m"
         securityContext:
+          readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
           capabilities:
             drop: ["ALL"]
@@ -251,6 +254,8 @@ spec:
         configMap:
           name: grafana-dashboard
       - name: data
+        emptyDir: {}
+      - name: grafana-tmp
         emptyDir: {}
 
 ---

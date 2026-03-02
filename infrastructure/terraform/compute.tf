@@ -1,3 +1,8 @@
+resource "google_service_account" "node_sa" {
+  account_id   = "shieldops-node-sa"
+  display_name = "ShieldOps Node Service Account"
+}
+
 # Node 1: Control Plane + Platform
 resource "google_compute_instance" "node1" {
   name         = "shieldops-ctrl"
@@ -18,9 +23,6 @@ resource "google_compute_instance" "node1" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.shieldops.id
-    access_config {
-      # Ephemeral public IP
-    }
   }
 
   metadata = {
@@ -46,6 +48,7 @@ resource "google_compute_instance" "node1" {
   EOF
 
   service_account {
+    email  = google_service_account.node_sa.email
     scopes = ["cloud-platform"]
   }
 
@@ -72,9 +75,6 @@ resource "google_compute_instance" "node2" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.shieldops.id
-    access_config {
-      # Ephemeral public IP
-    }
   }
 
   metadata = {
@@ -100,6 +100,7 @@ resource "google_compute_instance" "node2" {
   EOF
 
   service_account {
+    email  = google_service_account.node_sa.email
     scopes = ["cloud-platform"]
   }
 
