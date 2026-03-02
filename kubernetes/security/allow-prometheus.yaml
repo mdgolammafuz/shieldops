@@ -11,14 +11,14 @@ spec:
         operator: In
         values: ["ingestor", "processor", "api"]
   policyTypes:
-  - Ingress
+    - Ingress
   ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: prometheus
-    ports:
-    - protocol: TCP
-      port: 8080
-    - protocol: TCP
-      port: 8000
+    - from:
+        - podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8000
