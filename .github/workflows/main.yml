@@ -13,7 +13,7 @@ permissions:
 env:
   PROJECT_ID: shieldops-2026-xyz
   REGION: europe-west3
-  CLUSTER_NAME: shieldops-cluster # Verify this with the gcloud command
+  CLUSTER_NAME: shieldops-cluster
   GAR_LOCATION: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo
 
 jobs:
@@ -63,7 +63,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner in IaC mode
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           scan-type: 'config'
           hide-progress: false
@@ -149,7 +151,10 @@ jobs:
           docker buildx build --platform linux/amd64 -t ${{ env.GAR_LOCATION }}/shieldops-api:latest --push src/api/
 
       - name: Deploy to Production
+        env:
+          GRAFANA_PASS: ${{ secrets.GRAFANA_PASSWORD }}
         run: |
+          kubectl create secret generic grafana-secret --namespace shieldops --from-literal=admin-password="$GRAFANA_PASS" --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -R -f kubernetes/
           kubectl rollout status deployment/ingestor -n shieldops
           kubectl rollout status deployment/processor -n shieldops

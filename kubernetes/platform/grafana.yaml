@@ -196,7 +196,10 @@ spec:
           containerPort: 3000
         env:
         - name: GF_SECURITY_ADMIN_PASSWORD
-          value: "shieldops"  # Change in production
+          valueFrom:
+            secretKeyRef:
+              name: grafana-secret
+              key: admin-password
         - name: GF_AUTH_ANONYMOUS_ENABLED
           value: "true"
         - name: GF_AUTH_ANONYMOUS_ORG_ROLE
