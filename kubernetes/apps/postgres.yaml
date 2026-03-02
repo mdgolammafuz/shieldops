@@ -130,6 +130,9 @@ spec:
         emptyDir: {}
       - name: postgres-tmp
         emptyDir: {}
+      - name: init
+        configMap:
+          name: postgres-init
   volumeClaimTemplates:
   - metadata:
       name: data
