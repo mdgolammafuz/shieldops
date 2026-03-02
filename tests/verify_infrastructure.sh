@@ -96,32 +96,34 @@ check 10 "PostgreSQL pod Running" \
 
 # 11. PostgreSQL accepts connections
 check 11 "PostgreSQL accepts connections" \
-    "kubectl exec -n shieldops sts/postgres -- pg_isready -U shieldops"
+    "kubectl exec -n shieldops postgres-0 -- pg_isready -U shieldops"
        
 # 12. Schema exists with correct table
 check 12 "Threats table exists" \
-    "kubectl exec -n shieldops sts/postgres -- psql -U shieldops -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_name='threats'\" | grep -q '1'"
+    "kubectl exec -n shieldops postgres-0 -- psql -U shieldops -tAc \"SELECT COUNT(*) FROM information_schema.tables WHERE table_name='threats'\" | grep -q '1'"
 
 # 13. Can INSERT data (write test)
 TEST_FINGERPRINT="TEST-$(date +%s)"
 check 13 "PostgreSQL INSERT works" \
-    "kubectl exec -n shieldops sts/postgres -- psql -U shieldops -c \"INSERT INTO threats (domain, fingerprint, matched_keyword, entropy, confidence) VALUES ('test.com', '$TEST_FINGERPRINT', 'test', 2.5, 'low')\""
+    "kubectl exec -n shieldops postgres-0 -- psql -U shieldops -c \"INSERT INTO threats (domain, fingerprint, matched_keyword, entropy, confidence) VALUES ('test.com', '$TEST_FINGERPRINT', 'test', 2.5, 'low')\""
 
 # 14. Can SELECT data back (read test)
 check 14 "PostgreSQL SELECT works" \
-    "kubectl exec -n shieldops sts/postgres -- psql -U shieldops -tAc \"SELECT domain FROM threats WHERE fingerprint='$TEST_FINGERPRINT'\" | grep -q 'test.com'"
+    "kubectl exec -n shieldops postgres-0 -- psql -U shieldops -tAc \"SELECT domain FROM threats WHERE fingerprint='$TEST_FINGERPRINT'\" | grep -q 'test.com'"
 
 # 15. Constraints work (reject invalid data)
 check 15 "PostgreSQL constraints enforce" \
-    "! kubectl exec -n shieldops sts/postgres -- psql -U shieldops -c \"INSERT INTO threats (domain, fingerprint, matched_keyword, entropy, confidence) VALUES ('x', 'INVALID-$RANDOM', 'test', 2.5, 'INVALID')\" 2>&1 | grep -q 'INSERT'"
+    "! kubectl exec -n shieldops postgres-0 -- psql -U shieldops -c \"INSERT INTO threats (domain, fingerprint, matched_keyword, entropy, confidence) VALUES ('x', 'INVALID-$RANDOM', 'test', 2.5, 'INVALID')\" 2>&1 | grep -q 'INSERT'"
 
 # 16. Zero Trust Enforcement (NATS blocked from DB)
 # Note: This will fail on standard Minikube. Removing the hard fail to accurately reflect local cluster capabilities.
 check 16 "Zero Trust: Network Policy Applied" \
     "kubectl get networkpolicy -n shieldops allow-postgres-ingress >/dev/null 2>&1"
 
+check 17 "API LoadBalancer exists" "kubectl get svc -n shieldops api -o jsonpath='{.spec.type}' | grep -q 'LoadBalancer'"
+
 # Cleanup test data
-kubectl exec -n shieldops sts/postgres -- psql -U shieldops -c "DELETE FROM threats WHERE fingerprint LIKE 'TEST-%'" > /dev/null 2>&1 || true
+kubectl exec -n shieldops postgres-0 -- psql -U shieldops -c "DELETE FROM threats WHERE fingerprint LIKE 'TEST-%'" > /dev/null 2>&1 || true
 
 echo ""
 echo "========================================"
