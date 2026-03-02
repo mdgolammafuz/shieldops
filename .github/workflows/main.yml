@@ -118,6 +118,10 @@ jobs:
           echo "Waiting for core services..."
           kubectl rollout status statefulset/postgres -n shieldops --timeout=120s
           kubectl rollout status deployment/nats -n shieldops --timeout=120s
+          echo "Waiting for application layer..."
+          kubectl rollout status deployment/ingestor -n shieldops --timeout=120s
+          kubectl rollout status deployment/processor -n shieldops --timeout=120s
+          kubectl rollout status deployment/api -n shieldops --timeout=120s
 
       - name: Debug Kubernetes State on Failure
         if: failure()
