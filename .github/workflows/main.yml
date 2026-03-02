@@ -132,6 +132,9 @@ jobs:
           kubectl describe pod -l app=postgres -n shieldops
           echo "=== Postgres Logs ==="
           kubectl logs -l app=postgres -n shieldops || true
+          kubectl describe pod -l app=processor -n shieldops
+          echo "=== API Events ==="
+          kubectl describe pod -l app=api -n shieldops
 
       - name: Execute SRE Verification Scripts
         run: |
