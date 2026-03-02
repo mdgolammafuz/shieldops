@@ -22,8 +22,8 @@ lint:
 
 # 3. Run local security scans
 scan:
-	@echo "Scanning Infrastructure as Code..."
-	trivy config kubernetes/ --severity CRITICAL,HIGH
+	@echo "Scanning all Infrastructure as Code (K8s, Terraform, Ansible)..."
+	trivy config . --skip-dirs .venv --severity CRITICAL,HIGH
 
 # 4. Run local integration tests (against active cluster)
 test:
