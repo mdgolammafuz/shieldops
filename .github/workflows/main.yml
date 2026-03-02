@@ -62,16 +62,20 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run Trivy vulnerability scanner in IaC mode
-        uses: aquasecurity/trivy-action@0.28.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Trivy vulnerability scanner in IaC mode (Dockerized)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            aquasecurity/trivy:latest config /workspace/kubernetes/ \
+            --format sarif \
+            --output /workspace/trivy-results.sarif \
+            --severity CRITICAL,HIGH \
+            --exit-code 1
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          scan-type: 'config'
-          hide-progress: false
-          format: 'table'
-          scan-ref: 'kubernetes/'
-          severity: 'CRITICAL,HIGH'
+          sarif_file: 'trivy-results.sarif'
 
   integration-testing:
     name: Ephemeral Integration Tests
