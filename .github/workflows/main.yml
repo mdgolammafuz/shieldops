@@ -14,9 +14,9 @@ permissions:
 env:
   PROJECT_ID: shieldops-2026-xyz
   REGION: europe-west3
+  CLUSTER_ZONE: europe-west3-a
   CLUSTER_NAME: shieldops-cluster
   GAR_LOCATION: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo
-
 jobs:
   static-analysis:
     name: Code & Configuration Quality
@@ -166,7 +166,7 @@ jobs:
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: ${{ env.CLUSTER_NAME }}
-          location: ${{ env.REGION }}
+          location: ${{ env.CLUSTER_ZONE }}
 
       - name: Docker Auth to Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
