@@ -15,7 +15,7 @@ spec:
       labels:
         app: api
     spec:
-      serviceAccountName: processor 
+      serviceAccountName: processor
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

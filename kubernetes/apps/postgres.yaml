@@ -8,7 +8,7 @@ metadata:
 data:
   init.sql: |
     -- ShieldOps Database Schema
-    
+
     -- Threats table: Detected phishing domains
     CREATE TABLE IF NOT EXISTS threats (
         id              BIGSERIAL PRIMARY KEY,
@@ -22,19 +22,19 @@ data:
         not_after       TIMESTAMPTZ,
         received_at     TIMESTAMPTZ,
         created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        
+
         -- Constraints
         CONSTRAINT valid_confidence CHECK (confidence IN ('high', 'medium', 'low')),
         CONSTRAINT valid_entropy CHECK (entropy >= 0 AND entropy <= 5),
         CONSTRAINT valid_domain_length CHECK (char_length(domain) BETWEEN 4 AND 255)
     );
-    
+
     -- Indexes for common queries
     CREATE INDEX IF NOT EXISTS idx_threats_created ON threats(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_threats_keyword ON threats(matched_keyword);
     CREATE INDEX IF NOT EXISTS idx_threats_confidence ON threats(confidence);
     CREATE INDEX IF NOT EXISTS idx_threats_domain ON threats(domain);
-    
+
     -- Grant permissions
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO shieldops;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shieldops;

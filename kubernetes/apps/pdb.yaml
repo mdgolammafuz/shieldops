@@ -5,9 +5,9 @@
 # PRODUCTION FIX / ARCHITECTURE NOTE:
 # For single-replica deployments, minAvailable: 1 creates an eviction deadlock
 # during node drains because there is no second pod to take the load.
-# 
+#
 # Local Environment: Applied as-is (minAvailable: 1) to pass verification.
-# Cloud/Production: You MUST either accept brief downtime (minAvailable: 0) 
+# Cloud/Production: You MUST either accept brief downtime (minAvailable: 0)
 # OR scale the Deployments to `replicas: 2` before deploying to a multi-node cluster.
 # ==============================================================================
 
