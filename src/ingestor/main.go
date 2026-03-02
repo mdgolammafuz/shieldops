@@ -125,16 +125,19 @@ func main() {
 		slog.String("nats_subject", natsSubject),
 	)
 
+	
 	// Start metrics server
-	go func() {
-		http.Handle("/metrics", promhttp.Handler())
-		http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("ok"))
-		})
-		logger.Info("metrics server started", slog.String("port", metricsPort))
-		http.ListenAndServe(":"+metricsPort, nil)
-	}()
+  go func() {
+    http.Handle("/metrics", promhttp.Handler())
+    http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+      w.WriteHeader(http.StatusOK)
+      _, _ = w.Write([]byte("ok"))
+    })
+    logger.Info("metrics server started", slog.String("port", metricsPort))
+    if err := http.ListenAndServe(":"+metricsPort, nil); err != nil {
+      logger.Error("metrics server failed", slog.String("error", err.Error()))
+    }
+  }()
 
 	// Connect to NATS
 	nc, err := nats.Connect(natsURL,
@@ -181,55 +184,57 @@ func main() {
 }
 
 func stream(ctx context.Context, nc *nats.Conn) error {
-	conn, _, err := websocket.Dial(ctx, certstreamURL, nil)
-	if err != nil {
-		return err
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "shutdown")
+  conn, _, err := websocket.Dial(ctx, certstreamURL, nil)
+  if err != nil {
+    return err
+  }
+  defer func() {
+    _ = conn.Close(websocket.StatusNormalClosure, "shutdown")
+  }()
 
-	logger.Info("connected to certstream", slog.String("url", certstreamURL))
-	wsConnected.Set(1)
+  logger.Info("connected to certstream", slog.String("url", certstreamURL))
+  wsConnected.Set(1)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-			_, data, err := conn.Read(ctx)
-			if err != nil {
-				return err
-			}
-			msgsReceived.Inc()
+  for {
+    select {
+    case <-ctx.Done():
+      return nil
+    default:
+      _, data, err := conn.Read(ctx)
+      if err != nil {
+        return err
+      }
+      msgsReceived.Inc()
 
-			validated, reason := validate(data)
-			if validated == nil {
-				if reason != "" {
-					msgsInvalid.WithLabelValues(reason).Inc()
-					logger.Debug("message validation failed", slog.String("reason", reason))
-				}
-				continue
-			}
+      validated, reason := validate(data)
+      if validated == nil {
+        if reason != "" {
+          msgsInvalid.WithLabelValues(reason).Inc()
+          logger.Debug("message validation failed", slog.String("reason", reason))
+        }
+        continue
+      }
 
-			out, _ := json.Marshal(validated)
-			if err := nc.Publish(natsSubject, out); err != nil {
-				logger.Error("nats publish failed",
-					slog.String("error", err.Error()),
-					slog.String("fingerprint", validated.Fingerprint),
-				)
-				continue
-			}
-			msgsValid.Inc()
+      out, _ := json.Marshal(validated)
+      if err := nc.Publish(natsSubject, out); err != nil {
+        logger.Error("nats publish failed",
+          slog.String("error", err.Error()),
+          slog.String("fingerprint", validated.Fingerprint),
+        )
+        continue
+      }
+      msgsValid.Inc()
 
-			// Log first domain for debugging (not all to avoid log spam)
-			if len(validated.Domains) > 0 {
-				logger.Debug("certificate published",
-					slog.String("fingerprint", validated.Fingerprint),
-					slog.String("domain", validated.Domains[0]),
-					slog.Int("domain_count", len(validated.Domains)),
-				)
-			}
-		}
-	}
+      // Log first domain for debugging (not all to avoid log spam)
+      if len(validated.Domains) > 0 {
+        logger.Debug("certificate published",
+          slog.String("fingerprint", validated.Fingerprint),
+          slog.String("domain", validated.Domains[0]),
+          slog.Int("domain_count", len(validated.Domains)),
+        )
+      }
+    }
+  }
 }
 
 func validate(data []byte) (*validatedCert, string) {
