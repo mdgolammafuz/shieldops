@@ -46,8 +46,13 @@ ALLOWLIST_PATTERNS = [
     re.compile(r'\.google\.com$'),
     re.compile(r'\.google\.[a-z]{2,3}$'),  # google.de, google.co.uk
     re.compile(r'\.microsoft\.com$'),
+    re.compile(r'\.microsoft-int\.com$'), # Microsoft Internal Fabric
+    re.compile(r'\.microsoft-falcon\.net$'), # Microsoft Falcon
+    re.compile(r'\.azure\.com$'), # Azure Infrastructure
+    re.compile(r'\.windows\.net$'), # Azure Infrastructure
     re.compile(r'\.amazon\.com$'),
     re.compile(r'\.amazon\.[a-z]{2,3}$'),
+    re.compile(r'\.amazonaws\.com(\.[a-z]{2,3})?$'), # AWS and Regional AWS (e.g., .cn)
     re.compile(r'\.apple\.com$'),
     re.compile(r'\.facebook\.com$'),
     re.compile(r'\.instagram\.com$'),
@@ -62,7 +67,6 @@ ALLOWLIST_PATTERNS = [
     re.compile(r'\.netflix\.com$'),
     re.compile(r'\.github\.com$'),
     re.compile(r'\.cloudflare\.com$'),
-    re.compile(r'\.amazonaws\.com$'),
     re.compile(r'\.letsencrypt\.org$'),
 ]
 
@@ -100,7 +104,9 @@ def _find_keyword(domain: str) -> Optional[str]:
             
     # Priority 2: Global brands (Medium Confidence)
     for keyword in GLOBAL_BRANDS:
-        if keyword in domain:
+        # Enforce lexical boundaries to prevent "zoom" from matching "zoomag.com"
+        # The brand must be isolated by dots, hyphens, or string edges.
+        if re.search(rf'(?:^|[\-\.]){keyword}(?:[\-\.]|$)', domain):
             return keyword
             
     # Priority 3: Generic phishing patterns (Low Confidence)
