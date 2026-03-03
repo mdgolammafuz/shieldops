@@ -95,27 +95,6 @@ def analyze(domain: str) -> ThreatResult:
     return ThreatResult(True, matched, round(entropy, 3), confidence)
 
 
-def _find_keyword(domain: str) -> Optional[str]:
-    """Find matching keyword by priority: Banks > Brands > Generic."""
-    # Priority 1: High-value targets (High Confidence)
-    for keyword in GERMAN_BANKS:
-        if keyword in domain:
-            return keyword
-            
-    # Priority 2: Global brands (Medium Confidence)
-    for keyword in GLOBAL_BRANDS:
-        # Enforce lexical boundaries to prevent "zoom" from matching "zoomag.com"
-        # The brand must be isolated by dots, hyphens, or string edges.
-        if re.search(rf'(?:^|[\-\.]){keyword}(?:[\-\.]|$)', domain):
-            return keyword
-            
-    # Priority 3: Generic phishing patterns (Low Confidence)
-    for keyword in PHISHING_PATTERNS:
-        if keyword in domain:
-            return keyword
-            
-    return None
-
 def _calculate_entropy(text: str) -> float:
     """Calculate Shannon entropy. Higher = more random = more suspicious."""
     if not text:
@@ -131,6 +110,28 @@ def _calculate_entropy(text: str) -> float:
         for count in freq.values()
     )
     return entropy
+
+
+def _find_keyword(domain: str) -> Optional[str]:
+    """Find matching keyword by priority: Banks > Brands > Generic."""
+    # Priority 1: High-value targets (High Confidence)
+    for keyword in GERMAN_BANKS:
+        if re.search(rf'(?:^|[\-\.]){keyword}(?:[\-\.]|$)', domain):
+            return keyword
+            
+    # Priority 2: Global brands (Medium Confidence)
+    for keyword in GLOBAL_BRANDS:
+        # Enforce lexical boundaries to prevent "zoom" from matching "zoomag.com"
+        # The brand must be isolated by dots, hyphens, or string edges.
+        if re.search(rf'(?:^|[\-\.]){keyword}(?:[\-\.]|$)', domain):
+            return keyword
+            
+    # Priority 3: Generic phishing patterns (Low Confidence)
+    for keyword in PHISHING_PATTERNS:
+        if re.search(rf'(?:^|[\-\.]){keyword}(?:[\-\.]|$)', domain):
+            return keyword
+            
+    return None
 
 
 def _determine_confidence(keyword: str, entropy: float, domain: str) -> str:
