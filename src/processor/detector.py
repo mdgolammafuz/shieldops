@@ -35,13 +35,10 @@ GLOBAL_BRANDS = frozenset({
     'dropbox', 'adobe', 'zoom', 'slack', 'github',
 })
 
-# Phishing patterns
+# Phishing patterns (Strictly narrowed to avoid false positives on legitimate infrastructure)
 PHISHING_PATTERNS = frozenset({
-    'login', 'signin', 'sign-in', 'logon',
-    'secure', 'security', 'verify', 'verification',
-    'account', 'accounts', 'update', 'confirm',
-    'alert', 'suspend', 'locked', 'password',
-    'credential', 'authenticate', 'wallet',
+    'credential-update', 'account-verify', 'wallet-connect',
+    'suspend', 'locked-account', 'authenticate-now'
 })
 
 # Allowlist - real domains to skip (reduces false positives)
