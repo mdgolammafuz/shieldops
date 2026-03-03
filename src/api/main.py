@@ -27,9 +27,9 @@ async def fetch_prom_metric(query: str, default_val="0.0"):
         pass
     return default_val
 
-async def fetch_top_brand():
-    """Extracts the label of the highest targeted brand from Prometheus."""
-    query = 'topk(1, sum by (keyword) (rate(processor_threats_total[1h])))'
+async def fetch_top_category():
+    """Extracts the label of the highest targeted category from Prometheus."""
+    query = 'topk(1, sum by (keyword) (rate(processor_threats_total[24h])))'
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(PROMETHEUS_URL, params={"query": query}, timeout=2.0)
@@ -83,12 +83,12 @@ async def get_dashboard_data():
         avg_latency = round(sum(latencies)/len(latencies), 2) if latencies else 0.0
 
         # 2. Fetch Prometheus Telemetry & Business Insights Concurrently
-        ingestion_rate, buffer_depth, high_conf, duplicates, top_brand = await asyncio.gather(
+        ingestion_rate, buffer_depth, high_conf, duplicates, top_category = await asyncio.gather(
             fetch_prom_metric("sum(rate(ingestor_messages_received_total[1m]))"),
             fetch_prom_metric("sum(nats_consumer_num_pending)"),
-            fetch_prom_metric('sum(processor_threats_total{confidence="high"})'),
-            fetch_prom_metric('sum(processor_db_duplicates_total)'),
-            fetch_top_brand()
+            fetch_prom_metric('sum(increase(processor_threats_total{confidence="high"}[24h]))'),
+            fetch_prom_metric('sum(increase(processor_db_duplicates_total[24h]))'),
+            fetch_top_category()
         )
 
         return {
@@ -98,7 +98,7 @@ async def get_dashboard_data():
                 "buffer_depth": buffer_depth
             },
             "business": {
-                "top_brand": top_brand,
+                "top_brand": top_category,
                 "high_confidence_total": high_conf,
                 "duplicates_blocked": duplicates
             },
