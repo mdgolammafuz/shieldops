@@ -55,6 +55,7 @@ check 6 "Alert rules loaded" "kubectl exec -n $NS $PROM_POD -- wget -q -O- 'http
 GRAF_POD=$(kubectl get pods -n $NS -l app=grafana -o jsonpath='{.items[0].metadata.name}')
 check 7 "Grafana health responds" "kubectl exec -n $NS $GRAF_POD -- wget -q -O- 'http://localhost:3000/api/health' | grep -q 'ok'"
 
+kubectl rollout status deployment/loki -n $NS --timeout=120s >/dev/null 2>&1
 LOKI_POD=$(kubectl get pods -n $NS -l app=loki -o jsonpath='{.items[0].metadata.name}')
 check 8 "Loki ready endpoint responds" "kubectl exec -n $NS $LOKI_POD -- wget -q -O- 'http://localhost:3100/ready' | grep -q 'ready'"
 check 9 "Grafana has Loki datasource" "kubectl get configmap -n $NS grafana-datasources -o jsonpath='{.data}' | grep -q 'loki'"
