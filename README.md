@@ -1,6 +1,7 @@
 # ShieldOps
 
 [![ShieldOps CI/CD Pipeline](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml/badge.svg)](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml)
+
 [View Live UI](http://35.242.213.243/)
 
 **Cloud-Native Threat Intelligence Platform.**
