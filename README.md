@@ -1,8 +1,13 @@
 # ShieldOps
 
-**Real-time phishing detection infrastructure targeting German financial institutions.**
+[![ShieldOps CI/CD Pipeline](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml/badge.svg)](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml)
+[View Live UI](http://35.242.213.243/)
 
-A Kubernetes platform that processes live SSL certificates from Certificate Transparency logs, detecting brand impersonation attacks within 60 seconds of domain registration.
+**Cloud-Native Threat Intelligence Platform.**
+
+A Kubernetes DevSecOps platform that processes live Certificate Transparency (CT) logs to detect brand impersonation and zero-day phishing infrastructure within seconds of domain registration.
+
+This project is built to demonstrate platform engineering, continuous deployment with ephemeral testing, Zero-Trust networking, and distributed stateful workloads.
 
 ---
 
@@ -58,57 +63,65 @@ This platform monitors the Certificate Transparency log stream in real-time, det
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
-
 ---
 
-## Key Engineering Decisions
+## Technical Approach
 
-### 1. Decoupled Ingestion & Processing
-- **Ingestor (Go):** High-throughput WebSocket handling, minimal memory footprint, single binary deployment tailored for speed.
-- **Processor (Python):** Domain analysis logic benefits from rapid iteration and extensive string manipulation libraries for calculating entropy and typosquatting scores.
-- **Buffer (NATS):** Decouples the firehose from the processor. If the processor scales down or crashes, NATS absorbs the traffic spikes, preventing data loss.
+* **Go for Concurrency:** Go was chosen for the ingestion and processing services to efficiently handle multiple concurrent network requests and high-volume data streams without heavy resource overhead.
+* **NATS over Kafka:** NATS was selected as the central messaging nervous system for its simplicity, lightweight deployment footprint, and highly performant pub/sub mechanics, which align well with the immediate routing needs of this pipeline.
+* **Containerized Microservices:** The system is broken down into isolated Docker containers deployed on Kubernetes. This approach separates the concerns of ingestion, processing, and the UI, making it easier to manage dependencies and scale individual components.
 
-### 2. Zero Trust Networking (Calico)
-In a compromised cluster, lateral movement must be physically blocked by the CNI. Every pod has explicit ingress/egress rules.
+* **Zero-Trust Security & IAM:**
+  * **Network Isolation:** Calico NetworkPolicies enforce a strict default-deny baseline. Lateral movement is blocked at the CNI level (e.g., PostgreSQL natively rejects all TCP traffic except ingress originating directly from the Processor pod).
+  * **Workload Identity Federation (WIF):** The CI/CD pipeline authenticates to GCP entirely via short-lived OIDC tokens, mitigating the security risks associated with long-lived service account JSON keys.
+  * **Hardened Runtime:** Application pods execute with `runAsNonRoot: true`, read-only root filesystems, and explicitly dropped Linux capabilities (`drop: ["ALL"]`).
 
-```yaml
-# PostgreSQL strictly accepts connections ONLY from the Processor pod
-ingress:
-  - from:
-      - podSelector:
-          matchLabels:
-            app: processor
-    ports:
-      - port: 5432
-```
-A rogue pod attempting database or broker access is blocked at the TCP/IP level.
+* **Infrastructure as Code (Hybrid Capability):** The infrastructure is designed to be environment-agnostic:
+  * **Managed Cloud:** Terraform provisions the VPC, Subnets, and Google Kubernetes Engine (GKE) clusters.
+  * **Edge/Bare-Metal:** Ansible playbooks securely bootstrap K3s clusters on raw Linux virtual machines, maintaining self-managed control-plane capability.
+
+* **Self-Hosted Stateful Workloads:** NATS and PostgreSQL are deployed natively using StatefulSets, PersistentVolumeClaims, and dynamic ConfigMaps to ensure strict control over the storage layer and avoid cloud vendor lock-in.
 
 ---
+### The DevSecOps Pipeline (CI/CD)
 
-## Infrastructure as Code
+The GitHub Actions pipeline enforces a strict "shift-left" testing paradigm using ephemeral infrastructure to validate changes before production rollouts.
 
-### Provisioning (Terraform)
-Automated provisioning of Google Cloud Platform (GCP) resources to host the cluster.
-
-```hcl
-# Two e2-small instances on GCP
-resource "google_compute_instance" "k3s" {
-  count        = 2
-  machine_type = "e2-small"  # 2 vCPU, 2GB RAM
-}
+```text
+1. Code Push (Main)
+       │
+       ▼
+2. Static Analysis & Linting (Flake8, GolangCI, Hadolint)
+       │
+       ▼
+3. IaC Security Scan (Trivy - CRITICAL/HIGH vulnerabilities)
+       │
+       ▼
+4. Ephemeral Infrastructure (KinD - Kubernetes in Docker)
+       │   ├─ Builds local Docker images
+       │   └─ Deploys full application stack dynamically
+       ▼
+5. SRE Verification Suite (Integration Testing)
+       │   ├─ verify_infrastructure.sh (Node/Namespace readiness)
+       │   ├─ verify_application_layer.sh (Pod lifecycles, Health endpoints)
+       │   └─ verify_observability_security.sh (Zero-Trust network enforcement)
+       ▼
+6. Production Deployment (GKE)
+           ├─ Authenticates via Workload Identity Federation (Keyless)
+           ├─ Pushes to Google Artifact Registry (GAR)
+           └─ Executes rollout to Managed Kubernetes Cluster
 ```
+---
 
-### Configuration (Ansible)
-Automated bootstrapping of the Kubernetes environment and system hardening.
+## Detection Engine & Trade-offs
 
-```yaml
-# K3s cluster setup with hardened defaults
-- name: Install K3s server
-  roles:
-    - common        # System hardening
-    - k3s-server    # Control plane
-    - k3s-agent     # Worker nodes
-```
+The Processor microservice relies on static heuristics—calculating Shannon entropy and enforcing lexical regex boundaries—to detect typosquatting and Domain Generation Algorithms (DGAs) targeting global brands.
+
+**Architectural Trade-off**:
+While highly performant with minimal memory footprint, static heuristics inherently produce false positives when analyzing legitimate, auto-generated cloud infrastructure (e.g., internal AWS/Azure routing fabrics or CDN endpoints).
+
+**Future Iteration**:
+To improve detection accuracy and reduce false positives, the static allowlist will be replaced with dynamic integration of the Tranco/Alexa Top 1M domains, accompanied by asynchronous validation against external threat intelligence APIs (e.g., VirusTotal) via a dedicated worker queue.
 
 ---
 
@@ -127,7 +140,7 @@ Automated bootstrapping of the Kubernetes environment and system hardening.
 ## Project Structure
 
 ```text
-aerocast/
+shieldops/
 ├── infrastructure/
 │   ├── terraform/          # GCP instance provisioning
 │   └── ansible/            # K3s cluster bootstrapping
@@ -150,24 +163,30 @@ aerocast/
 
 ## Deployment & Verification
 
-```bash
-# 1. Provision infrastructure
-cd infrastructure/terraform && terraform apply
+### Prerequisites
+* Docker & Docker Compose
+* Kubernetes (Minikube / kind)
+* Go (1.21+)
 
-# 2. Configure cluster
-cd ../ansible && ansible-playbook playbooks/site.yml
+### Running the Project
 
-# 3. Apply Kubernetes Manifests
-kubectl apply -f kubernetes/security/
-kubectl apply -f kubernetes/platform/
-kubectl apply -f kubernetes/apps/
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/mdgolammafuzgm/shieldops.git](https://github.com/mdgolammafuz/shieldops.git)
+    cd shieldops
+    ```
 
-# 4. Run the Verification Suite
-chmod +x tests/*.sh
-./tests/verify_infrastructure.sh
-./tests/verify_application_layer.sh
-./tests/verify_observability_security.sh
-```
+2.  **Provision the infrastructure:**
+    Ensure your Kubernetes cluster is running, then apply the base configurations for NATS and the application deployments:
+    ```bash
+    kubectl apply -f kubernetes/
+    ```
+
+3.  **Verify Deployment:**
+    Run the verification script to ensure all pods are running and security/observability configurations are properly attached:
+    ```bash
+    ./tests/verify_observability_security.sh
+    ```
 
 ---
 ## Documentation
