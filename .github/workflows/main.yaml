@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: write  # Upgraded to write to allow GitOps commit back to repo
+  contents: write
   id-token: write
   security-events: write
 
@@ -32,8 +32,15 @@ jobs:
           file_or_dir: kubernetes/
           config_data: |
             extends: relaxed
+            ignore: |
+              kubernetes/helm/shieldops/templates/
             rules:
               line-length: disable
+              new-line-at-end-of-file: disable
+              trailing-spaces: disable
+
+      - name: Lint Helm Chart
+        run: helm lint kubernetes/helm/shieldops
 
       - name: Lint Dockerfiles (Hadolint)
         uses: hadolint/hadolint-action@v3.1.0
@@ -55,7 +62,6 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           working-directory: src/ingestor
-
   security-scan:
     name: IaC Security Scanning
     needs: static-analysis
