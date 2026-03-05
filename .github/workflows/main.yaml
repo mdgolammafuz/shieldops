@@ -110,6 +110,15 @@ jobs:
       - name: Deploy to Ephemeral Cluster (Helm)
         run: |
           kubectl create namespace shieldops
+          
+          # Enforce Pod Security Standards on the ephemeral CI namespace
+          kubectl label namespace shieldops \
+            pod-security.kubernetes.io/enforce=restricted \
+            pod-security.kubernetes.io/enforce-version=latest \
+            pod-security.kubernetes.io/warn=restricted \
+            pod-security.kubernetes.io/warn-version=latest \
+            --overwrite
+
           DB_PASS=$(openssl rand -hex 16)
           DB_URL="postgresql://shieldops:${DB_PASS}@postgres:5432/shieldops"
           
