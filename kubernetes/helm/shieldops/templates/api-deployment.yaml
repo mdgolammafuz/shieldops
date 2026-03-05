@@ -26,6 +26,9 @@ spec:
       - name: api
         image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
         imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        env:
+        - name: PROMETHEUS_URL
+          value: {{ .Values.api.env.prometheusUrl | quote }}
         ports:
         - containerPort: {{ .Values.api.service.targetPort }}
         volumeMounts:
