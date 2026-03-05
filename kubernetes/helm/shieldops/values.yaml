@@ -5,12 +5,11 @@ namespace:
     enforceVersion: latest
     warn: restricted
     warnVersion: latest
-
 ingestor:
   replicaCount: 1
   image:
     repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-ingestor
-    tag: "latest"
+    tag: "df02d05c5e98f5d1194d2e77cbca0292543cc354"
     pullPolicy: Always
   env:
     certstreamUrl: "ws://certstream-server:8080/"
@@ -26,7 +25,6 @@ ingestor:
       cpu: "200m"
   pdb:
     minAvailable: 1
-
 certstreamServer:
   replicaCount: 1
   image:
@@ -40,10 +38,8 @@ certstreamServer:
     limits:
       memory: "512Mi"
       cpu: "500m"
-
 rbac:
   create: true
-
 postgres:
   replicaCount: 1
   image:
@@ -65,7 +61,6 @@ postgres:
     limits:
       memory: "256Mi"
       cpu: "200m"
-
 nats:
   replicaCount: 1
   image:
@@ -79,13 +74,11 @@ nats:
     limits:
       memory: "128Mi"
       cpu: "100m"
-
-
 processor:
   replicaCount: 1
   image:
     repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-processor
-    tag: "latest"
+    tag: "df02d05c5e98f5d1194d2e77cbca0292543cc354"
     pullPolicy: Always
   env:
     natsUrl: "nats://nats:4222"
@@ -100,12 +93,11 @@ processor:
       cpu: "500m"
   pdb:
     minAvailable: 1
-
 api:
   replicaCount: 1
   image:
     repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-api
-    tag: "latest"
+    tag: "df02d05c5e98f5d1194d2e77cbca0292543cc354"
     pullPolicy: Always
   service:
     type: LoadBalancer
@@ -119,7 +111,6 @@ api:
     limits:
       memory: "128Mi"
       cpu: "200m"
-
 cleanup:
   schedule: "0 3 * * *"
   image:
@@ -132,5 +123,3 @@ cleanup:
     limits:
       memory: "64Mi"
       cpu: "50m"
-
-  
