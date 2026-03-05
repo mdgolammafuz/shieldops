@@ -1,0 +1,176 @@
+# Values for grafana/grafana
+podLabels:
+  app: grafana
+service:
+  port: 3000
+  targetPort: 3000
+  labels:
+    app: grafana
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 472
+  fsGroup: 472
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+grafana.ini:
+  auth.anonymous:
+    enabled: true
+    org_role: Viewer
+  analytics:
+    check_for_updates: false
+    reporting_enabled: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    - name: Prometheus
+      type: prometheus
+      access: proxy
+      url: http://prometheus-server:9090
+      isDefault: true
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki:3100
+      jsonData:
+        maxLines: 1000
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    shieldops:
+      json: |
+        {
+          "annotations": { "list": [] },
+          "editable": true,
+          "fiscalYearStartMonth": 0,
+          "graphTooltip": 0,
+          "id": null,
+          "links": [],
+          "liveNow": false,
+          "panels": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": {
+                "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+              },
+              "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+              "id": 1,
+              "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+              "targets": [
+                { "expr": "ingestor_messages_received_total", "legendFormat": "Total" }
+              ],
+              "title": "Messages Received",
+              "type": "stat"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": {
+                "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+              },
+              "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+              "id": 2,
+              "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+              "targets": [
+                { "expr": "sum(processor_threats_total)", "legendFormat": "Total" }
+              ],
+              "title": "Threats Detected",
+              "type": "stat"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": {
+                "defaults": { "color": { "mode": "palette-classic" }, "unit": "ops" }
+              },
+              "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+              "id": 3,
+              "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+              "targets": [
+                { "expr": "rate(ingestor_messages_received_total[1m])", "legendFormat": "Rate" }
+              ],
+              "title": "Ingestion Rate",
+              "type": "stat"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": {
+                "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1000}, {"color": "red", "value": 5000}] } }
+              },
+              "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+              "id": 4,
+              "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto" },
+              "targets": [
+                { "expr": "nats_consumer_num_pending", "legendFormat": "Pending" }
+              ],
+              "title": "Buffer Lag",
+              "type": "stat"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": { "defaults": { "unit": "short" } },
+              "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+              "id": 5,
+              "options": { "legend": { "displayMode": "list" } },
+              "targets": [
+                { "expr": "rate(ingestor_messages_received_total[1m])", "legendFormat": "Received" },
+                { "expr": "rate(ingestor_messages_valid_total[1m])", "legendFormat": "Valid" },
+                { "expr": "rate(ingestor_messages_invalid_total[1m])", "legendFormat": "Invalid" }
+              ],
+              "title": "Ingestion Rate",
+              "type": "timeseries"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": { "defaults": { "unit": "short" } },
+              "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+              "id": 6,
+              "options": { "legend": { "displayMode": "list" } },
+              "targets": [
+                { "expr": "sum by (keyword) (rate(processor_threats_total[5m]))", "legendFormat": "{{ keyword }}" }
+              ],
+              "title": "Threats by Keyword",
+              "type": "timeseries"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "fieldConfig": { "defaults": { "unit": "short" } },
+              "gridPos": { "h": 4, "w": 24, "x": 0, "y": 12 },
+              "id": 7,
+              "options": {},
+              "targets": [
+                { "expr": "up{job=~\"ingestor|processor|nats|prometheus\"}", "legendFormat": "{{ job }}" }
+              ],
+              "title": "Service Health",
+              "type": "timeseries"
+            }
+          ],
+          "refresh": "10s",
+          "schemaVersion": 38,
+          "style": "dark",
+          "tags": ["shieldops"],
+          "templating": { "list": [] },
+          "time": { "from": "now-1h", "to": "now" },
+          "title": "ShieldOps - Phishing Detection",
+          "uid": "shieldops-main",
+          "version": 1
+        }
