@@ -99,6 +99,8 @@ api:
     repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-api
     tag: "c0ad74cd85fd4a8e0b56b05f28a0d393b58d3032"
     pullPolicy: Always
+  env:
+    prometheusUrl: "http://prometheus-server:80"
   service:
     type: LoadBalancer
     loadBalancerIP: "35.242.213.243"
