@@ -3,11 +3,13 @@ server:
   podLabels:
     app: prometheus
   service:
-    port: 9090
+    port: 80
     targetPort: 9090
     labels:
       app: prometheus
   retention: 7d
+  persistentVolume:
+    enabled: false
   securityContext:
     runAsNonRoot: true
     runAsUser: 65534
@@ -19,6 +21,11 @@ server:
     readOnlyRootFilesystem: true
     capabilities:
       drop: ["ALL"]
+
+# Disable the insecure sidecar
+configmapReload:
+  prometheus:
+    enabled: false
 
 serverFiles:
   prometheus.yml:
@@ -49,59 +56,13 @@ serverFiles:
         for: 1m
         labels:
           severity: critical
-        annotations:
-          summary: "Ingestor is down"
-          description: "Ingestor has been down for more than 1 minute"
       - alert: ProcessorDown
         expr: up{job="processor"} == 0
         for: 1m
         labels:
           severity: critical
-        annotations:
-          summary: "Processor is down"
-          description: "Processor has been down for more than 1 minute"
-      - alert: HighBufferLag
-        expr: nats_consumer_num_pending > 5000
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "NATS buffer backlog high"
-          description: "NATS has {{ $value }} pending messages"
-      - alert: NoMessagesReceived
-        expr: rate(ingestor_messages_received_total[5m]) == 0
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "No messages received"
-          description: "Ingestor hasn't received messages for 5 minutes"
-      - alert: NoThreatsDetected
-        expr: rate(processor_threats_total[30m]) == 0
-        for: 30m
-        labels:
-          severity: warning
-        annotations:
-          summary: "No threats detected"
-          description: "No threats detected in 30 minutes (might be normal)"
-      - alert: HighInvalidMessageRate
-        expr: rate(ingestor_messages_invalid_total[5m]) / rate(ingestor_messages_received_total[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High invalid message rate"
-          description: "More than 10% of messages are invalid"
-      - alert: PodRestartingFrequently
-        expr: increase(kube_pod_container_status_restarts_total{namespace="shieldops"}[1h]) > 3
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Pod restarting frequently"
-          description: "Pod {{ $labels.pod }} has restarted {{ $value }} times in the last hour"
 
-# Disable default components we don't need to save resources
+# Disable default components we don't need
 alertmanager:
   enabled: false
 kube-state-metrics:
@@ -109,4 +70,6 @@ kube-state-metrics:
 prometheus-node-exporter:
   enabled: false
 pushgateway:
+  enabled: false
+prometheus-pushgateway:
   enabled: false
