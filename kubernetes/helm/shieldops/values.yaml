@@ -1,0 +1,136 @@
+namespace:
+  name: shieldops
+  podSecurity:
+    enforce: restricted
+    enforceVersion: latest
+    warn: restricted
+    warnVersion: latest
+
+ingestor:
+  replicaCount: 1
+  image:
+    repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-ingestor
+    tag: "latest"
+    pullPolicy: Always
+  env:
+    certstreamUrl: "ws://certstream-server:8080/"
+    natsUrl: "nats://nats:4222"
+    natsSubject: "certs.validated"
+    metricsPort: "8080"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  pdb:
+    minAvailable: 1
+
+certstreamServer:
+  replicaCount: 1
+  image:
+    repository: 0rickyy0/certstream-server-go
+    tag: "latest"
+    pullPolicy: Always
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+rbac:
+  create: true
+
+postgres:
+  replicaCount: 1
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: Always
+  auth:
+    username: "shieldops"
+    password: "shieldops-secret-2024"
+    databaseUrl: "postgresql://shieldops:shieldops-secret-2024@postgres:5432/shieldops"
+    database: "shieldops"
+  persistence:
+    size: 5Gi
+    accessMode: ReadWriteOnce
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+nats:
+  replicaCount: 1
+  image:
+    repository: nats
+    tag: "2.10-alpine"
+    pullPolicy: Always
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+
+processor:
+  replicaCount: 1
+  image:
+    repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-processor
+    tag: "latest"
+    pullPolicy: Always
+  env:
+    natsUrl: "nats://nats:4222"
+    natsSubject: "certs.validated"
+    metricsPort: "8080"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "500m"
+  pdb:
+    minAvailable: 1
+
+api:
+  replicaCount: 1
+  image:
+    repository: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo/shieldops-api
+    tag: "latest"
+    pullPolicy: Always
+  service:
+    type: LoadBalancer
+    loadBalancerIP: "35.242.213.243"
+    port: 80
+    targetPort: 8000
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"
+
+cleanup:
+  schedule: "0 3 * * *"
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  resources:
+    requests:
+      memory: "32Mi"
+      cpu: "10m"
+    limits:
+      memory: "64Mi"
+      cpu: "50m"
+
+  

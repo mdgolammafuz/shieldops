@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: certstream-server
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: certstream-server
+spec:
+  selector:
+    app: certstream-server
+  ports:
+  - name: ws
+    port: 8080
+    targetPort: 8080

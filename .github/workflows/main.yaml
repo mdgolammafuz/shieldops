@@ -1,0 +1,205 @@
+name: ShieldOps CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write  # Upgraded to write to allow GitOps commit back to repo
+  id-token: write
+  security-events: write
+
+env:
+  PROJECT_ID: shieldops-2026-xyz
+  REGION: europe-west3
+  CLUSTER_ZONE: europe-west3-a
+  CLUSTER_NAME: shieldops-cluster
+  GAR_LOCATION: europe-west3-docker.pkg.dev/shieldops-2026-xyz/shieldops-repo
+
+jobs:
+  static-analysis:
+    name: Code & Configuration Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Lint Kubernetes YAML
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: kubernetes/
+          config_data: |
+            extends: relaxed
+            rules:
+              line-length: disable
+
+      - name: Lint Dockerfiles (Hadolint)
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          recursive: true
+          ignore: DL3018,DL3008
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Lint Python (Flake8)
+        run: |
+          pip install flake8
+          flake8 src/api/ src/processor/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Lint Go (golangci-lint)
+        uses: golangci/golangci-lint-action@v4
+        with:
+          working-directory: src/ingestor
+
+  security-scan:
+    name: IaC Security Scanning
+    needs: static-analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in IaC mode (Dockerized)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            aquasec/trivy:latest config /workspace \
+            --format sarif \
+            --output /workspace/trivy-results.sarif \
+            --severity CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  integration-testing:
+    name: Ephemeral Integration Tests
+    needs: security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup KinD (Kubernetes IN Docker)
+        uses: helm/kind-action@v1.8.0
+        with:
+          cluster_name: shieldops-ci
+
+      - name: Build Local Images
+        run: |
+          docker build -t shieldops-ingestor:ci-test src/ingestor/
+          docker build -t shieldops-processor:ci-test src/processor/
+          docker build -t shieldops-api:ci-test src/api/
+
+      - name: Load Images into KinD
+        run: |
+          kind load docker-image shieldops-ingestor:ci-test shieldops-processor:ci-test shieldops-api:ci-test --name shieldops-ci
+
+      - name: Deploy to Ephemeral Cluster (Helm)
+        run: |
+          kubectl create namespace shieldops
+          DB_PASS=$(openssl rand -hex 16)
+          DB_URL="postgresql://shieldops:${DB_PASS}@postgres:5432/shieldops"
+          
+          # Deploy using Helm, overriding image repositories to local KinD images
+          # and setting PDB minAvailable to 0 to prevent node drain deadlocks in KinD
+          helm install shieldops ./kubernetes/helm/shieldops \
+            --namespace shieldops \
+            --set postgres.auth.password=$DB_PASS \
+            --set postgres.auth.databaseUrl=$DB_URL \
+            --set ingestor.image.repository=shieldops-ingestor \
+            --set ingestor.image.tag=ci-test \
+            --set ingestor.image.pullPolicy=Never \
+            --set processor.image.repository=shieldops-processor \
+            --set processor.image.tag=ci-test \
+            --set processor.image.pullPolicy=Never \
+            --set api.image.repository=shieldops-api \
+            --set api.image.tag=ci-test \
+            --set api.image.pullPolicy=Never \
+            --set ingestor.pdb.minAvailable=0 \
+            --set processor.pdb.minAvailable=0
+            
+      - name: Wait for Infrastructure to Stabilize
+        run: |
+          echo "Waiting for core services..."
+          kubectl rollout status statefulset/postgres -n shieldops --timeout=120s
+          kubectl rollout status deployment/nats -n shieldops --timeout=120s
+          echo "Waiting for application layer..."
+          kubectl rollout status deployment/ingestor -n shieldops --timeout=120s
+          kubectl rollout status deployment/processor -n shieldops --timeout=120s
+          kubectl rollout status deployment/api -n shieldops --timeout=120s
+
+      - name: Debug Kubernetes State on Failure
+        if: failure()
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n shieldops
+          echo "=== Postgres Events ==="
+          kubectl describe pod -l app=postgres -n shieldops
+          echo "=== Postgres Logs ==="
+          kubectl logs -l app=postgres -n shieldops || true
+          kubectl describe pod -l app=processor -n shieldops
+          echo "=== API Events ==="
+          kubectl describe pod -l app=api -n shieldops
+
+      - name: Execute SRE Verification Scripts
+        run: |
+          chmod +x tests/*.sh
+          ./tests/verify_infrastructure.sh
+          ./tests/verify_application_layer.sh
+          ./tests/verify_observibility_security.sh
+
+  build-and-update-manifests:
+    name: Build Images & Update GitOps Manifests
+    needs: integration-testing
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Docker Auth to Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and Push Production Images
+        run: |
+          # Use Git commit SHA as immutable image tag instead of 'latest'
+          IMAGE_TAG=${{ github.sha }}
+          docker buildx build --platform linux/amd64 -t ${{ env.GAR_LOCATION }}/shieldops-ingestor:$IMAGE_TAG --push src/ingestor/
+          docker buildx build --platform linux/amd64 -t ${{ env.GAR_LOCATION }}/shieldops-processor:$IMAGE_TAG --push src/processor/
+          docker buildx build --platform linux/amd64 -t ${{ env.GAR_LOCATION }}/shieldops-api:$IMAGE_TAG --push src/api/
+
+      - name: Update Helm values.yaml for Argo CD
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          
+          # Using yq to update the specific values
+          yq -i ".ingestor.image.tag = \"$IMAGE_TAG\"" kubernetes/helm/shieldops/values.yaml
+          yq -i ".processor.image.tag = \"$IMAGE_TAG\"" kubernetes/helm/shieldops/values.yaml
+          yq -i ".api.image.tag = \"$IMAGE_TAG\"" kubernetes/helm/shieldops/values.yaml
+
+      - name: Commit and Push Manifest Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add kubernetes/helm/shieldops/values.yaml
+          # Use [skip ci] so this commit doesn't trigger the pipeline again
+          git commit -m "chore(gitops): release $IMAGE_TAG [skip ci]" || echo "No changes to commit"
+          git push origin main

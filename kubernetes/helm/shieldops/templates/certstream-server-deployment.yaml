@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: certstream-server
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: certstream-server
+spec:
+  replicas: {{ .Values.certstreamServer.replicaCount }}
+  selector:
+    matchLabels:
+      app: certstream-server
+  template:
+    metadata:
+      labels:
+        app: certstream-server
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: certstream-server
+        image: "{{ .Values.certstreamServer.image.repository }}:{{ .Values.certstreamServer.image.tag }}"
+        imagePullPolicy: {{ .Values.certstreamServer.image.pullPolicy }}
+        ports:
+        - name: ws
+          containerPort: 8080
+        resources:
+          requests:
+            memory: {{ .Values.certstreamServer.resources.requests.memory | quote }}
+            cpu: {{ .Values.certstreamServer.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.certstreamServer.resources.limits.memory | quote }}
+            cpu: {{ .Values.certstreamServer.resources.limits.cpu | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]

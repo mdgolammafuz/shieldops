@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: nats
+spec:
+  replicas: {{ .Values.nats.replicaCount }}
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: nats
+        image: "{{ .Values.nats.image.repository }}:{{ .Values.nats.image.tag }}"
+        args:
+        - "-c"
+        - "/etc/nats/nats.conf"
+        ports:
+        - name: client
+          containerPort: 4222
+        - name: monitor
+          containerPort: 8222
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nats
+          readOnly: true
+        resources:
+          requests:
+            memory: {{ .Values.nats.resources.requests.memory | quote }}
+            cpu: {{ .Values.nats.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.nats.resources.limits.memory | quote }}
+            cpu: {{ .Values.nats.resources.limits.cpu | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: nats-config

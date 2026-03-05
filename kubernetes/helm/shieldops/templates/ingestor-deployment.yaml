@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestor
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: ingestor
+spec:
+  replicas: {{ .Values.ingestor.replicaCount }}
+  selector:
+    matchLabels:
+      app: ingestor
+  template:
+    metadata:
+      labels:
+        app: ingestor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.ingestor.env.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ingestor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: ingestor
+        image: "{{ .Values.ingestor.image.repository }}:{{ .Values.ingestor.image.tag }}"
+        imagePullPolicy: {{ .Values.ingestor.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: 8080
+        env:
+        - name: CERTSTREAM_URL
+          value: {{ .Values.ingestor.env.certstreamUrl | quote }}
+        - name: NATS_URL
+          value: {{ .Values.ingestor.env.natsUrl | quote }}
+        - name: NATS_SUBJECT
+          value: {{ .Values.ingestor.env.natsSubject | quote }}
+        - name: METRICS_PORT
+          value: {{ .Values.ingestor.env.metricsPort | quote }}
+        resources:
+          requests:
+            memory: {{ .Values.ingestor.resources.requests.memory | quote }}
+            cpu: {{ .Values.ingestor.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.ingestor.resources.limits.memory | quote }}
+            cpu: {{ .Values.ingestor.resources.limits.cpu | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2

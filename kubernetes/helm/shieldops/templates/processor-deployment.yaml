@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: processor
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: processor
+spec:
+  replicas: {{ .Values.processor.replicaCount }}
+  selector:
+    matchLabels:
+      app: processor
+  template:
+    metadata:
+      labels:
+        app: processor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.processor.env.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: processor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: processor
+        image: "{{ .Values.processor.image.repository }}:{{ .Values.processor.image.tag }}"
+        imagePullPolicy: {{ .Values.processor.image.pullPolicy }}
+        ports:
+        - name: metrics
+          containerPort: 8080
+        env:
+        - name: NATS_URL
+          value: {{ .Values.processor.env.natsUrl | quote }}
+        - name: NATS_SUBJECT
+          value: {{ .Values.processor.env.natsSubject | quote }}
+        - name: METRICS_PORT
+          value: {{ .Values.processor.env.metricsPort | quote }}
+        - name: DATABASE_URL_FILE
+          value: "/etc/secrets/database-url"
+        volumeMounts:
+        - name: db-secret
+          mountPath: /etc/secrets
+          readOnly: true
+        resources:
+          requests:
+            memory: {{ .Values.processor.resources.requests.memory | quote }}
+            cpu: {{ .Values.processor.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.processor.resources.limits.memory | quote }}
+            cpu: {{ .Values.processor.resources.limits.cpu | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 2
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 5"]
+      volumes:
+      - name: db-secret
+        secret:
+          secretName: postgres-secret
+          defaultMode: 0400
+          items:
+          - key: database-url
+            path: database-url

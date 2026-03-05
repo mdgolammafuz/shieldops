@@ -1,0 +1,57 @@
+{{- if .Values.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingestor
+  namespace: {{ .Values.namespace.name }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: processor
+  namespace: {{ .Values.namespace.name }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: app-reader
+  namespace: {{ .Values.namespace.name }}
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get"]
+  resourceNames: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ingestor-binding
+  namespace: {{ .Values.namespace.name }}
+subjects:
+- kind: ServiceAccount
+  name: ingestor
+  namespace: {{ .Values.namespace.name }}
+roleRef:
+  kind: Role
+  name: app-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: processor-binding
+  namespace: {{ .Values.namespace.name }}
+subjects:
+- kind: ServiceAccount
+  name: processor
+  namespace: {{ .Values.namespace.name }}
+roleRef:
+  kind: Role
+  name: app-reader
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

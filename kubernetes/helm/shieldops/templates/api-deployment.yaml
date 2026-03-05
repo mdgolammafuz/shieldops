@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: api
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      serviceAccountName: processor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: api
+        image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+        imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.api.service.targetPort }}
+        volumeMounts:
+        - name: db-secret
+          mountPath: /etc/secrets
+          readOnly: true
+        resources:
+          requests:
+            memory: {{ .Values.api.resources.requests.memory | quote }}
+            cpu: {{ .Values.api.resources.requests.cpu | quote }}
+          limits:
+            memory: {{ .Values.api.resources.limits.memory | quote }}
+            cpu: {{ .Values.api.resources.limits.cpu | quote }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: {{ .Values.api.service.targetPort }}
+          periodSeconds: 5
+      volumes:
+      - name: db-secret
+        secret:
+          secretName: postgres-secret
+          defaultMode: 0400
+          items:
+          - key: database-url
+            path: database-url
