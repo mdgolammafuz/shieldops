@@ -57,7 +57,7 @@ PROC_POD=$(kubectl get pods -n $NS -l app=processor -o jsonpath='{.items[0].meta
 check 5 "Processor CAN reach PostgreSQL" "kubectl exec -n $NS $PROC_POD -- python -c \"import socket; s=socket.socket(); s.settimeout(3); s.connect(('postgres', 5432)); print('ok')\" | grep -q 'ok'"
 
 # Used the Processor pod with Python to test NATS connection since Ingestor lacks a shell
-check 6 "Legitimate pods CAN reach NATS" "kubectl exec -n $NS $PROC_POD -- python -c \"import urllib.request; print(urllib.request.urlopen('http://nats:8222/healthz').read().decode())\" | grep -q 'ok'"
+check 6 "Legitimate pods CAN reach NATS" "kubectl exec -n $NS $PROC_POD -- python -c \"import socket; s=socket.socket(); s.settimeout(3); s.connect(('nats', 4222)); print('ok')\" | grep -q 'ok'"
 
 echo ""
 echo "--- Security Configuration Tests ---"
