@@ -67,9 +67,9 @@ spec:
         args:
         - "-varz"
         - "-jsz=all"
-        - "http://localhost:8222"
         - "-port"
         - "7777"
+        - "http://localhost:8222"
         ports:
         - name: metrics
           containerPort: 7777
