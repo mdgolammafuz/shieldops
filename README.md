@@ -1,8 +1,8 @@
 # ShieldOps
 
-[![ShieldOps CI/CD Pipeline](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml/badge.svg)](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yml)
+[![ShieldOps CI/CD Pipeline](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yaml/badge.svg)](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yaml)
 
-[View Live UI](http://35.242.213.243/)
+<a href="http://35.242.213.243/" target="_blank">View Live UI ↗</a>
 
 **Cloud-Native Threat Intelligence Platform.**
 
@@ -66,6 +66,75 @@ This platform monitors the Certificate Transparency log stream in real-time, det
 ```
 ---
 
+
+## Project Structure
+
+```text
+shieldops/
+├── infrastructure/         
+│   ├── ansible/            # K3s cluster bootstrapping
+│   └── terraform/          # GCP infrastructure provisioning
+├── kubernetes/             
+│   ├── apps/               # Raw Kubernetes manifests
+│   ├── helm/shieldops/     # Packaged Helm chart for the core application
+│   ├── platform/           # ArgoCD application configs & Observability values
+│   └── security/           # Zero Trust NetworkPolicies & RBAC
+├── src/                    
+│   ├── api/                # Lightweight Python FastAPI UI
+│   ├── ingestor/           # Go WebSocket client for CT logs
+│   └── processor/          # Python threat detection engine
+└── tests/                  # Automated verification suite (SRE tests)
+```
+---
+
+## Technologies
+
+| Layer | Tools |
+|-------|-------|
+| **Infrastructure** | Terraform, Ansible, GCP |
+| **Cluster** | K3s , GKE |
+| **Deployment** | ArgoCD, Helm |
+| **Runtime** | Go 1.22, Python 3.12, Docker |
+| **Messaging** | NATS JetStream |
+| **Storage** | PostgreSQL 16 |
+| **Observability** | Prometheus, Grafana, Loki, Promtail |
+| **Security** | Calico CNI |
+
+---
+
+
+## Deployment & Verification
+
+### Prerequisites
+* Docker & Docker Compose
+* Kubernetes (Minikube / kind / GKE)
+* Go (1.21+)
+* Docker & Docker Compose
+* Helm 3+
+* ArgoCD CLI
+
+### Running the Project
+
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/mdgolammafuzgm/shieldops.git](https://github.com/mdgolammafuz/shieldops.git)
+    cd shieldops
+    ```
+
+2.  **Bootstrap the GitOps Controller:**
+    Ensure your Kubernetes cluster is running, then apply the ArgoCD application manifest. ArgoCD will automatically read the Helm charts and manifests from this repository and deploy the stack:
+    ```bash
+    kubectl apply -f kubernetes/platform/argocd-application.yaml
+    ```
+
+3.  **Verify Deployment:**
+    Run the verification script to ensure all pods are running and security/observability configurations are properly attached:
+    ```bash
+    ./tests/verify_infrastructure.sh
+    ./tests/verify_application_layer.sh
+    ./tests/verify_observibility_security.sh
+    ```
+---
 ## Technical Approach
 
 * **Go for Concurrency:** Go was chosen for the ingestion and processing services to efficiently handle multiple concurrent network requests and high-volume data streams without heavy resource overhead.
@@ -86,31 +155,22 @@ This platform monitors the Certificate Transparency log stream in real-time, det
 ---
 ### The DevSecOps Pipeline (CI/CD)
 
-The GitHub Actions pipeline enforces a strict "shift-left" testing paradigm using ephemeral infrastructure to validate changes before production rollouts.
+The deployment pipeline strictly separates Continuous Integration (build/test) from Continuous Delivery (deployment) using a pull-based GitOps model.
 
 ```text
-1. Code Push (Main)
-       │
-       ▼
-2. Static Analysis & Linting (Flake8, GolangCI, Hadolint)
-       │
-       ▼
-3. IaC Security Scan (Trivy - CRITICAL/HIGH vulnerabilities)
-       │
-       ▼
-4. Ephemeral Infrastructure (KinD - Kubernetes in Docker)
-       │   ├─ Builds local Docker images
-       │   └─ Deploys full application stack dynamically
-       ▼
-5. SRE Verification Suite (Integration Testing)
-       │   ├─ verify_infrastructure.sh (Node/Namespace readiness)
-       │   ├─ verify_application_layer.sh (Pod lifecycles, Health endpoints)
-       │   └─ verify_observability_security.sh (Zero-Trust network enforcement)
-       ▼
-6. Production Deployment (GKE)
-           ├─ Authenticates via Workload Identity Federation (Keyless)
-           ├─ Pushes to Google Artifact Registry (GAR)
-           └─ Executes rollout to Managed Kubernetes Cluster
+1. Continuous Integration (GitHub Actions)
+       ├─ Executes static analysis, linting, and Trivy vulnerability scans.
+       ├─ Builds ephemeral images and tests them against a local KinD cluster.
+       └─ Runs the SRE verification suite to validate network policies and data flow.
+       
+2. Artifact Registry & State Update
+       ├─ Pushes validated container images to Google Artifact Registry.
+       └─ Commits the new image tags back to the Git repository.
+       
+3. Continuous Delivery (ArgoCD & Helm)
+       ├─ ArgoCD actively monitors the repository for configuration drift.
+       ├─ Detects the updated Helm values and manifests.
+       └─ Automatically synchronizes the Kubernetes cluster state to match Git.
 ```
 ---
 
@@ -137,59 +197,6 @@ To improve detection accuracy and reduce false positives, the static allowlist w
 | **Secrets** | Kubernetes Secrets mapped as volumes/env vars |
 
 ---
-
-## Project Structure
-
-```text
-shieldops/
-├── infrastructure/
-│   ├── terraform/          # GCP instance provisioning
-│   └── ansible/            # K3s cluster bootstrapping
-├── src/
-│   ├── ingestor/           # Go WebSocket client
-│   ├── processor/          # Python detection engine
-│   └── api/                # Lightweight UI/API
-├── kubernetes/
-│   ├── apps/               # Core workloads (Ingestor, Processor, DB, NATS)
-│   ├── platform/           # Observability (Prometheus, Grafana, Loki)
-│   └── security/           # Zero Trust NetworkPolicies & RBAC
-├── tests/                  # Automated verification suite
-│   ├── verify_infrastructure.sh
-│   ├── verify_application_layer.sh
-│   └── verify_observability_security.sh
-└── .github/workflows/      # CI/CD Pipelines
-```
-
----
-
-## Deployment & Verification
-
-### Prerequisites
-* Docker & Docker Compose
-* Kubernetes (Minikube / kind)
-* Go (1.21+)
-
-### Running the Project
-
-1.  **Clone the repository:**
-    ```bash
-    git clone [https://github.com/mdgolammafuzgm/shieldops.git](https://github.com/mdgolammafuz/shieldops.git)
-    cd shieldops
-    ```
-
-2.  **Provision the infrastructure:**
-    Ensure your Kubernetes cluster is running, then apply the base configurations for NATS and the application deployments:
-    ```bash
-    kubectl apply -f kubernetes/
-    ```
-
-3.  **Verify Deployment:**
-    Run the verification script to ensure all pods are running and security/observability configurations are properly attached:
-    ```bash
-    ./tests/verify_observability_security.sh
-    ```
-
----
 ## Documentation
 
 | Document | Purpose |
@@ -199,19 +206,6 @@ shieldops/
 | [Zero Trust Demo](ZERO-TRUST.md) | Network isolation verification |
 | [Troubleshooting Runbooks](TROUBLESHOOTING.md) | Common failure scenarios |
 | [KUBERNETES Patterns](KUBERNETES-PATTERNS.md) | Kubernetes design patterns |
-
----
-## Technologies
-
-| Layer | Tools |
-|-------|-------|
-| **Infrastructure** | Terraform, Ansible, GCP |
-| **Cluster** | K3s |
-| **Runtime** | Go 1.22, Python 3.12, Docker |
-| **Messaging** | NATS |
-| **Storage** | PostgreSQL 16 |
-| **Observability** | Prometheus, Grafana, Loki, Promtail |
-| **Security** | Calico CNI |
 
 ---
 
