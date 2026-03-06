@@ -9,7 +9,7 @@ echo ""
 
 PASS=0
 FAIL=0
-TOTAL=21
+TOTAL=20
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -82,15 +82,16 @@ check 17 "Ingestor receiving messages" "kubectl exec -n shieldops \$PROC_POD -- 
 
 check 18 "Processor processing messages" "kubectl exec -n shieldops \$PROC_POD -- python -c \"import urllib.request; print(urllib.request.urlopen('http://localhost:8080/metrics').read().decode())\" | grep 'processor_messages_total' | awk '{if (\$2 > 0) exit 0; else exit 1}'"
 
-check 19 "Threats detected in database" "kubectl exec -n shieldops sts/postgres -- psql -U shieldops -d shieldops -tAc 'SELECT COUNT(*) FROM threats' | awk '{if (\$1 > 0) exit 0; else exit 1}'"
+PG_POD=$(kubectl get pods -n shieldops -l app=postgres -o jsonpath='{.items[0].metadata.name}')
+
+echo -e "${YELLOW}   Waiting up to 30s for live threats to be detected...${NC}"
+check 19 "Threats detected in database" "for i in {1..15}; do COUNT=\$(kubectl exec -n shieldops \$PG_POD -- psql -U shieldops -d shieldops -tAc 'SELECT COUNT(*) FROM threats' 2>/dev/null); if [[ \"\$COUNT\" =~ ^[0-9]+$ ]] && [ \"\$COUNT\" -gt 0 ]; then exit 0; fi; sleep 2; done; exit 1"
 
 echo ""
 echo "--- Data Quality Tests ---"
 echo ""
 
-check 20 "Threats detected in database" "kubectl exec -n shieldops postgres-0 -- psql -U shieldops -d shieldops -tAc 'SELECT COUNT(*) FROM threats' | awk '{if (\$1 > 0) exit 0; else exit 1}'"
-
-check 21 "No duplicate fingerprints" "kubectl exec -n shieldops postgres-0 -- psql -U shieldops -d shieldops -tAc 'SELECT COUNT(*) - COUNT(DISTINCT fingerprint) FROM threats' | grep -q '^0$'"
+check 20 "No duplicate fingerprints" "kubectl exec -n shieldops \$PG_POD -- psql -U shieldops -d shieldops -tAc 'SELECT COUNT(*) - COUNT(DISTINCT fingerprint) FROM threats' | grep -q '^0$'"
 
 echo ""
 echo "========================================"
