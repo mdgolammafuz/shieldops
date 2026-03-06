@@ -8,7 +8,9 @@ from fastapi.responses import HTMLResponse
 app = FastAPI(title="ShieldOps Threat Radar")
 
 DB_SECRET_FILE = "/etc/secrets/database-url"
-PROMETHEUS_URL = "http://prometheus:9090/api/v1/query"
+# Use the environment variable injected by Kubernetes, defaulting to the correct service name and port
+BASE_PROM_URL = os.getenv("PROMETHEUS_URL", "http://prometheus-server:80")
+PROMETHEUS_URL = f"{BASE_PROM_URL}/api/v1/query"
 
 def get_db_url():
     if os.path.exists(DB_SECRET_FILE):
@@ -98,7 +100,7 @@ async def get_dashboard_data():
                 "buffer_depth": buffer_depth
             },
             "business": {
-                "top_brand": top_category,
+                "top_category": top_category,
                 "high_confidence_total": high_conf,
                 "duplicates_blocked": duplicates
             },
