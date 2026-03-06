@@ -18,5 +18,8 @@ data:
     max_pending: 64MB
     max_connections: 100
 
-    # No JetStream (memory only for RAM efficiency)
-    # In production, enable JetStream for persistence
+    # JetStream enabled for buffer lag metrics
+    jetstream {
+      store_dir: /data/jetstream
+      max_mem: 1G
+    }
