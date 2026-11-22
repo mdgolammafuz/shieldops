@@ -3,6 +3,7 @@
 [![ShieldOps CI/CD Pipeline](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yaml/badge.svg)](https://github.com/mdgolammafuz/shieldops/actions/workflows/main.yaml)
 
 <a href="http://35.242.213.243/" target="_blank">View Live UI ↗</a>
+GitHub (Quellcode, keine Live-Demo)
 
 **Cloud-Native Threat Intelligence Platform.**
 
